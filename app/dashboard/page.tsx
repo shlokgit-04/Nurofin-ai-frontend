@@ -1,274 +1,235 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { 
-  Sparkles, 
-  TrendingUp, 
-  AlertTriangle, 
-  CheckCircle, 
   Calendar, 
-  Play
+  CheckSquare, 
+  AlertTriangle, 
+  Clock, 
+  Sparkles, 
+  Users, 
+  ChevronRight, 
+  TrendingUp, 
+  Bell, 
+  ArrowUpRight 
 } from 'lucide-react';
-import Card from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
-import styles from './dashboard.module.css';
+import { useStore } from '@/lib/store';
+import { cn } from '@/utils/cn';
 
 export default function Dashboard() {
-  const today = new Date().toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const { userProfile, tasks, meetings, projects, notifications } = useStore();
+
+  // Compute metrics
+  const todayStr = new Date().toISOString().split('T')[0];
+  const meetingsToday = meetings.filter(m => m.date === todayStr);
+  const assignedTasks = tasks.filter(t => t.assignedTo.name === userProfile.name);
+  const overdueTasks = tasks.filter(t => {
+    const isOverdue = new Date(t.dueDate) < new Date() && t.status !== 'done';
+    return isOverdue;
   });
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const recentActivities = projects.flatMap(p => p.activities.map(a => ({ ...a, projectName: p.name })))
+    .sort((a,b) => b.id.localeCompare(a.id));
+
+  // AI recommendations mock
+  const aiRecommendations = [
+    "Approve Acme Developer Licenses invoice ($12.4K) to unlock Project Alpha CORS blockers.",
+    "Schedule follow-up sync with John Doe on PostgreSQL database sharding standards.",
+    "AWS Ledger DB instances are scheduled for renewal in 25 days; review cost allocation.",
+  ];
 
   return (
-    <div className={styles.container}>
-      <div className={styles.welcomeHeader}>
-        <div className={styles.welcomeText}>
-          <h1>Good Morning, Vincent</h1>
-          <p>Here is your executive briefing for today.</p>
+    <div className="space-y-6 max-w-7xl mx-auto font-sans text-text-primary">
+      {/* Welcome Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md">
+        <div>
+          <h2 className="text-xl font-bold font-sans">Welcome Back, {userProfile.name}</h2>
+          <p className="text-xs text-text-secondary mt-1">Here is your automated operations briefing for today.</p>
         </div>
-        <div className={styles.dateDisplay}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar className="w-4 h-4" style={{ color: 'var(--accent-blue)' }} />
-            {today}
-          </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/chat"
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold shadow transition-all"
+          >
+            <Sparkles className="w-4 h-4" /> Ask Executive AI
+          </Link>
         </div>
       </div>
 
-      <div className={styles.dashboardGrid}>
-        {/* Left Column - Detailed Views */}
-        <div className={styles.leftColumn}>
-          
-          {/* AI Executive Briefing */}
-          <div className={styles.aiBriefingCard}>
-            <div className={styles.aiBriefingHeader}>
-              <Sparkles className="w-5 h-5" style={{ color: 'var(--accent-blue)' }} />
-              <span>AI Executive Assistant Briefing</span>
-            </div>
-            
-            <div className={styles.briefingPoints}>
-              <div className={styles.briefingItem}>
-                <AlertTriangle className={`${styles.briefingItemIcon} ${styles.briefingItemIconError} w-4 h-4`} />
-                <div>
-                  <strong>Financial Warning:</strong> AWS billing exceeded Q2 estimates by 14%. Vendor payment of <strong>$12,450</strong> for Acme Corp is overdue. Action recommended to review subscription scaling.
-                </div>
-              </div>
-              <div className={styles.briefingItem}>
-                <TrendingUp className={`${styles.briefingItemIcon} ${styles.briefingItemIconWarning} w-4 h-4`} />
-                <div>
-                  <strong>Project Delay:</strong> Project Alpha is marked as delayed due to resource bottlenecks in frontend QA. Moving Q3 launch by 1 week resolves resource overlap.
-                </div>
-              </div>
-              <div className={styles.briefingItem}>
-                <CheckCircle className={`${styles.briefingItemIcon} ${styles.briefingItemIconSuccess} w-4 h-4`} />
-                <div>
-                  <strong>Success Milestones:</strong> Nurofin completed the Series A Audit with zero compliance failures. Outstanding invoices for June are 92% cleared.
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.suggestionsRow}>
-              <button className={styles.suggestionBtn}>What should I focus on today?</button>
-              <button className={styles.suggestionBtn}>Show delayed projects</button>
-              <button className={styles.suggestionBtn}>Summarize yesterday</button>
-              <button className={styles.suggestionBtn}>Any financial risks?</button>
-            </div>
+      {/* Primary KPI Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Meetings Today */}
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 flex items-center gap-4 hover:border-text-muted transition-colors">
+          <div className="p-3 bg-accent-blue/10 rounded-lg text-accent-blue">
+            <Calendar className="w-5 h-5" />
           </div>
-
-          {/* Today's Meetings */}
-          <Card 
-            title="Today's Schedule & Meetings" 
-            description="All times in local time. Hover to view action summaries."
-            headerAction={<Button size="sm">View Calendar</Button>}
-          >
-            <div className={styles.listContainer}>
-              <div className={styles.meetingItem}>
-                <div className={styles.meetingDetails}>
-                  <span className={styles.meetingName}>Q2 Financial Review</span>
-                  <div className={styles.meetingMeta}>
-                    <span>09:30 - 10:30 (60 mins)</span>
-                    <span>•</span>
-                    <span>Participants: Vincent (CEO), Sarah (CFO), Dave (VP Finance)</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Badge variant="blue">Upcoming</Badge>
-                  <Button size="sm" variant="secondary" leftIcon={<Play className="w-3.5 h-3.5" />}>Join</Button>
-                </div>
-              </div>
-
-              <div className={styles.meetingItem}>
-                <div className={styles.meetingDetails}>
-                  <span className={styles.meetingName}>Project Alpha - Status Alignment</span>
-                  <div className={styles.meetingMeta}>
-                    <span>11:30 - 12:00 (30 mins)</span>
-                    <span>•</span>
-                    <span>Participants: Vincent, Alice (PM), Bob (Lead Architect)</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Badge variant="orange">Resource Warning</Badge>
-                  <Button size="sm" variant="secondary" leftIcon={<Play className="w-3.5 h-3.5" />}>Join</Button>
-                </div>
-              </div>
-
-              <div className={styles.meetingItem}>
-                <div className={styles.meetingDetails}>
-                  <span className={styles.meetingName}>Investor Prep & Pitch Review</span>
-                  <div className={styles.meetingMeta}>
-                    <span>14:00 - 15:30 (90 mins)</span>
-                    <span>•</span>
-                    <span>Participants: Vincent, Board Members</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <Badge variant="gray">Scheduled</Badge>
-                  <Button size="sm" variant="secondary" leftIcon={<Play className="w-3.5 h-3.5" />}>Join</Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Pending Approvals */}
-          <Card 
-            title="Executive Action Items & Pending Approvals" 
-            description="Actions requiring your explicit authorization to proceed."
-          >
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>Item</th>
-                  <th>Category</th>
-                  <th>Value</th>
-                  <th>Requester</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>#REQ-094</strong></td>
-                  <td>AWS Production Upgrade Scale</td>
-                  <td>Cloud Infrastructure</td>
-                  <td>$4,800 / mo</td>
-                  <td>DevOps Lead</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className={styles.actionButton}>Authorize</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>#REQ-095</strong></td>
-                  <td>Q3 Contractor Onboarding</td>
-                  <td>Operations / HR</td>
-                  <td>$18,000 / contract</td>
-                  <td>Engineering Director</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className={styles.actionButton}>Authorize</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>#REQ-096</strong></td>
-                  <td>Travel & Board Dinner Expense</td>
-                  <td>Travel & Entertainment</td>
-                  <td>$1,250</td>
-                  <td>VP Business Dev</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className={styles.actionButton}>Authorize</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Card>
+          <div>
+            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Meetings Today</span>
+            <span className="text-xl font-extrabold">{meetingsToday.length}</span>
+          </div>
         </div>
 
-        {/* Right Column - Stats and Overview */}
-        <div className={styles.rightColumn}>
-          {/* Key Metrics Dashboard */}
-          <div className={styles.metricsGrid}>
-            <div className={styles.metricCard}>
-              <span className={styles.metricLabel}>Risk Index</span>
-              <span className={styles.metricValue} style={{ color: 'var(--accent-orange)' }}>Medium</span>
-              <span className={styles.metricSub}>AWS costs & Project Alpha delay</span>
-            </div>
-            
-            <div className={styles.metricCard}>
-              <span className={styles.metricLabel}>Focus Time</span>
-              <span className={styles.metricValue} style={{ color: 'var(--accent-green)' }}>3.5 Hrs</span>
-              <span className={styles.metricSub}>Estimated available today</span>
-            </div>
+        {/* Assigned Tasks */}
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 flex items-center gap-4 hover:border-text-muted transition-colors">
+          <div className="p-3 bg-accent-green/10 rounded-lg text-accent-green">
+            <CheckSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Assigned Tasks</span>
+            <span className="text-xl font-extrabold">{assignedTasks.length}</span>
+          </div>
+        </div>
 
-            <div className={styles.metricCard}>
-              <span className={styles.metricLabel}>Overdue Tasks</span>
-              <span className={styles.metricValue} style={{ color: 'var(--accent-red)' }}>4 Tasks</span>
-              <span className={styles.metricSub}>Urgent attention required</span>
-            </div>
+        {/* Overdue Tasks */}
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 flex items-center gap-4 hover:border-text-muted transition-colors">
+          <div className="p-3 bg-accent-red/10 rounded-lg text-accent-red">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Overdue Tasks</span>
+            <span className="text-xl font-extrabold text-accent-red">{overdueTasks.length}</span>
+          </div>
+        </div>
 
-            <div className={styles.metricCard}>
-              <span className={styles.metricLabel}>Payments Due</span>
-              <span className={styles.metricValue} style={{ color: 'var(--text-primary)' }}>$45.2K</span>
-              <span className={styles.metricSub}>Vendor payouts this week</span>
+        {/* Budget Remaining */}
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 flex items-center gap-4 hover:border-text-muted transition-colors">
+          <div className="p-3 bg-accent-orange/10 rounded-lg text-accent-orange">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Budget Remaining</span>
+            <span className="text-xl font-extrabold text-accent-orange">$382.5K</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Core Dashboard Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left Column: AI Recommendations & Meetings */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* AI Recommendations Card */}
+          <div className="bg-background-secondary border border-border-subtle rounded-lg overflow-hidden shadow-md">
+            <div className="p-5 border-b border-border-subtle flex items-center justify-between bg-accent-blue/[0.02]">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-accent-blue" />
+                AI Strategic Briefing Recommendations
+              </h3>
+              <span className="text-[10px] bg-accent-blue/15 text-accent-blue px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                Real-Time
+              </span>
+            </div>
+            <div className="p-5 space-y-3.5">
+              {aiRecommendations.map((rec, i) => (
+                <div 
+                  key={i} 
+                  className="flex gap-3 bg-background-primary border border-border-subtle/50 p-3.5 rounded-md hover:border-accent-blue/30 transition-colors"
+                >
+                  <span className="w-5 h-5 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    {i+1}
+                  </span>
+                  <p className="text-xs text-text-secondary leading-relaxed">{rec}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Upcoming Deadlines */}
-          <Card title="Upcoming Deliverables">
-            <div className={styles.listContainer}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '8px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>Q2 Tax Submissions</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Compliance Requirement</span>
-                </div>
-                <Badge variant="red">July 03</Badge>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '8px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>Alpha QA Verification</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Project Alpha</span>
-                </div>
-                <Badge variant="orange">July 05</Badge>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '500' }}>Board Progress Deck</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Investor Relations</span>
-                </div>
-                <Badge variant="blue">July 10</Badge>
-              </div>
+          {/* Today Meetings List */}
+          <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md">
+            <div className="p-5 border-b border-border-subtle flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-text-secondary" />
+                Meetings Schedule Today
+              </h3>
+              <Link href="/meetings" className="text-2xs text-accent-blue hover:underline flex items-center gap-0.5">
+                View Scheduler <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
-          </Card>
-
-          {/* Recent Executive Actions */}
-          <Card title="Recent Activity Logs">
-            <div className={styles.activityList}>
-              <div className={styles.activityItem}>
-                <span className={styles.activityDot} />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span className={styles.activityText}>Signed off Board Resolution Audit #08</span>
-                  <span className={styles.activityTime}>Today, 08:14</span>
-                </div>
-              </div>
-
-              <div className={styles.activityItem}>
-                <span className={styles.activityDot} style={{ backgroundColor: 'var(--accent-blue)' }} />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span className={styles.activityText}>Uploaded IRS tax transcripts to Knowledge Base</span>
-                  <span className={styles.activityTime}>Yesterday, 17:30</span>
-                </div>
-              </div>
-
-              <div className={styles.activityItem}>
-                <span className={styles.activityDot} />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span className={styles.activityText}>Approved travel stipend for DevCon team</span>
-                  <span className={styles.activityTime}>Yesterday, 15:45</span>
-                </div>
-              </div>
+            <div className="p-5 divide-y divide-border-subtle/50">
+              {meetingsToday.length === 0 ? (
+                <div className="p-4 text-center text-xs text-text-muted">No meetings scheduled for today.</div>
+              ) : (
+                meetingsToday.map((meet) => (
+                  <div key={meet.id} className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-semibold text-text-primary">{meet.title}</h4>
+                      <p className="text-[11px] text-text-secondary flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-text-muted" /> {meet.time} ({meet.duration})
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] bg-surface-card border border-border-subtle px-2 py-0.5 rounded text-text-secondary font-medium">
+                        {meet.type}
+                      </span>
+                      <Link 
+                        href="/meetings" 
+                        className="p-1 bg-background-primary border border-border-subtle hover:border-text-muted rounded text-text-secondary hover:text-text-primary transition-all"
+                      >
+                        <ArrowUpRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          </Card>
+          </div>
+        </div>
+
+        {/* Right Column: Deadlines, Team Progress, Notifications */}
+        <div className="space-y-6">
+          {/* Deadlines & Overdue Tasks */}
+          <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md">
+            <div className="p-5 border-b border-border-subtle">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Clock className="w-4 h-4 text-accent-red" />
+                Critical Deadlines
+              </h3>
+            </div>
+            <div className="p-5 space-y-4">
+              {overdueTasks.slice(0, 3).map((task) => (
+                <div key={task.id} className="bg-background-primary p-3 rounded border border-border-subtle flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-accent-red bg-accent-red/10 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                      Overdue
+                    </span>
+                    <span className="text-[10px] text-text-muted">{task.dueDate}</span>
+                  </div>
+                  <h4 className="text-xs font-semibold text-text-primary line-clamp-1">{task.title}</h4>
+                  <p className="text-[11px] text-text-secondary leading-relaxed line-clamp-2">{task.description}</p>
+                </div>
+              ))}
+              {overdueTasks.length === 0 && (
+                <div className="text-center py-4 text-xs text-text-muted">No overdue items. Great work!</div>
+              )}
+            </div>
+          </div>
+
+          {/* Team Progress Card */}
+          <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md">
+            <div className="p-5 border-b border-border-subtle">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Users className="w-4 h-4 text-accent-green" />
+                Team Project Progress
+              </h3>
+            </div>
+            <div className="p-5 space-y-4">
+              {activeProjects.slice(0, 3).map((p) => (
+                <div key={p.id} className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-text-primary truncate max-w-[200px]">{p.name}</span>
+                    <span className="font-bold text-accent-blue">{p.progress}%</span>
+                  </div>
+                  <div className="h-2 bg-background-primary rounded-full overflow-hidden border border-border-subtle/50">
+                    <div 
+                      className="h-full bg-accent-blue rounded-full transition-all duration-500"
+                      style={{ width: `${p.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
