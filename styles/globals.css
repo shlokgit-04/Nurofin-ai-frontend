@@ -16,7 +16,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-family);
-  font-size: 14px;
+  font-size: 15.4px; /* Zoomed by 10% from 14px */
   overflow-x: hidden;
   height: 100%;
 }
