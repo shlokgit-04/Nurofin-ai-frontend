@@ -84,7 +84,7 @@ export default function ClientLayout({
           <Topbar />
 
           {/* Core Content Area */}
-          <main className="flex-1 pt-16 p-6 overflow-y-auto">
+          <main className="flex-1 pt-[5.5rem] p-6 overflow-y-auto">
             {children}
           </main>
           {/* Floating AI Helper overlay */}
