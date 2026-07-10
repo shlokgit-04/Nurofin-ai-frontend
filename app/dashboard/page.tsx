@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Calendar, 
@@ -12,13 +12,73 @@ import {
   ChevronRight, 
   TrendingUp, 
   Bell, 
-  ArrowUpRight 
+  ArrowUpRight,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
+import { tasksService } from '@/services/tasks';
+import { projectsService } from '@/services/projects';
+import { meetingsService } from '@/services/meetings';
+import { financeService, FinancialMetrics } from '@/services/finance';
+import { aiService } from '@/services/ai';
 
 export default function Dashboard() {
-  const { userProfile, tasks, meetings, projects, notifications } = useStore();
+  const { 
+    userProfile, 
+    tasks, 
+    setTasks, 
+    meetings, 
+    setMeetings, 
+    projects, 
+    setProjects 
+  } = useStore();
+
+  const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
+  const [aiRecommendations, setAiRecommendations] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadDashboardData() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch all dashboard data concurrently
+        const [tasksData, projectsData, meetingsData, metricsData, recommendationsData] = await Promise.all([
+          tasksService.getTasks(),
+          projectsService.getProjects(),
+          meetingsService.getMeetings(),
+          financeService.getMetrics(),
+          aiService.getAiRecommendations(),
+        ]);
+
+        if (active) {
+          setTasks(tasksData);
+          setProjects(projectsData);
+          setMeetings(meetingsData);
+          setMetrics(metricsData);
+          setAiRecommendations(recommendationsData);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Failed to load dashboard data');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadDashboardData();
+    return () => {
+      active = false;
+    };
+  }, [setTasks, setProjects, setMeetings]);
 
   // Compute metrics
   const todayStr = new Date().toISOString().split('T')[0];
@@ -29,15 +89,40 @@ export default function Dashboard() {
     return isOverdue;
   });
   const activeProjects = projects.filter(p => p.status === 'active');
-  const recentActivities = projects.flatMap(p => p.activities.map(a => ({ ...a, projectName: p.name })))
-    .sort((a,b) => b.id.localeCompare(a.id));
 
-  // AI recommendations mock
-  const aiRecommendations = [
-    "Approve Acme Developer Licenses invoice ($12.4K) to unlock Project Alpha CORS blockers.",
-    "Schedule follow-up sync with John Doe on PostgreSQL database sharding standards.",
-    "AWS Ledger DB instances are scheduled for renewal in 25 days; review cost allocation.",
-  ];
+  const formatBudget = (value: number) => {
+    if (value >= 1000) {
+      return `$${(value / 1000).toFixed(1)}K`;
+    }
+    return `$${value}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-text-muted">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <span className="text-sm font-medium">Loading Executive Dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 max-w-md mx-auto text-center">
+        <AlertCircle className="w-10 h-10 text-accent-red" />
+        <div>
+          <h3 className="text-sm font-bold text-text-primary mb-1">Failed to Load Dashboard</h3>
+          <p className="text-xs text-text-muted leading-relaxed">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans text-text-primary">
@@ -99,7 +184,9 @@ export default function Dashboard() {
           </div>
           <div>
             <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Budget Remaining</span>
-            <span className="text-xl font-extrabold text-accent-orange">$382.5K</span>
+            <span className="text-xl font-extrabold text-accent-orange">
+              {metrics ? formatBudget(metrics.budgetRemaining) : '$0'}
+            </span>
           </div>
         </div>
       </div>
@@ -121,17 +208,21 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="p-5 space-y-3.5">
-              {aiRecommendations.map((rec, i) => (
-                <div 
-                  key={i} 
-                  className="flex gap-3 bg-background-primary border border-border-subtle/50 p-3.5 rounded-md hover:border-accent-blue/30 transition-colors"
-                >
-                  <span className="w-5 h-5 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {i+1}
-                  </span>
-                  <p className="text-xs text-text-secondary leading-relaxed">{rec}</p>
-                </div>
-              ))}
+              {aiRecommendations.length === 0 ? (
+                <div className="p-4 text-center text-xs text-text-muted">No recommendations available.</div>
+              ) : (
+                aiRecommendations.map((rec, i) => (
+                  <div 
+                    key={i} 
+                    className="flex gap-3 bg-background-primary border border-border-subtle/50 p-3.5 rounded-md hover:border-accent-blue/30 transition-colors"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-accent-blue/10 text-accent-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      {i+1}
+                    </span>
+                    <p className="text-xs text-text-secondary leading-relaxed">{rec}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -205,7 +296,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Team Progress Card */}
+          {/* Team Project Progress Card */}
           <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md">
             <div className="p-5 border-b border-border-subtle">
               <h3 className="text-sm font-bold flex items-center gap-2">
@@ -214,20 +305,24 @@ export default function Dashboard() {
               </h3>
             </div>
             <div className="p-5 space-y-4">
-              {activeProjects.slice(0, 3).map((p) => (
-                <div key={p.id} className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-text-primary truncate max-w-[200px]">{p.name}</span>
-                    <span className="font-bold text-accent-blue">{p.progress}%</span>
+              {activeProjects.length === 0 ? (
+                <div className="text-center py-4 text-xs text-text-muted">No active projects.</div>
+              ) : (
+                activeProjects.slice(0, 3).map((p) => (
+                  <div key={p.id} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-text-primary truncate max-w-[200px]">{p.name}</span>
+                      <span className="font-bold text-accent-blue">{p.progress}%</span>
+                    </div>
+                    <div className="h-2 bg-background-primary rounded-full overflow-hidden border border-border-subtle/50">
+                      <div 
+                        className="h-full bg-accent-blue rounded-full transition-all duration-500"
+                        style={{ width: `${p.progress}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-background-primary rounded-full overflow-hidden border border-border-subtle/50">
-                    <div 
-                      className="h-full bg-accent-blue rounded-full transition-all duration-500"
-                      style={{ width: `${p.progress}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

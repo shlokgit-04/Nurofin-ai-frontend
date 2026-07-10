@@ -60,6 +60,7 @@ interface AppState {
   // Meeting Actions
   addMeeting: (meeting: Meeting) => void;
   updateMeeting: (id: string, updates: Partial<Meeting>) => void;
+  setMeetings: (meetings: Meeting[]) => void;
 
   // Issue Actions
   addIssue: (issue: Issue) => void;
@@ -138,28 +139,7 @@ export const useStore = create<AppState>((set) => ({
   tasks: [],
 
   // Mock Meetings
-  meetings: [
-    {
-      id: 'meet-1',
-      title: 'Nurofin Executive Strategy Review',
-      date: '2026-07-06',
-      time: '14:00',
-      duration: '45 mins',
-      attendees: ['Vincent N. (CEO)', 'Sarah Connor (PM)', 'John Doe (Lead Arch)'],
-      notes: 'Review ledger sharding blueprints and confirm vendor payout authorizations.',
-      type: 'hybrid',
-    },
-    {
-      id: 'meet-2',
-      title: 'API Gateway Authentication Review',
-      date: '2026-07-07',
-      time: '10:30',
-      duration: '30 mins',
-      attendees: ['Aryan Dev', 'John Doe'],
-      notes: 'Go over GetStream connection tokens and CORS rules config.',
-      type: 'video',
-    },
-  ],
+  meetings: [],
 
   // Mock Issues
   issues: [
@@ -299,6 +279,7 @@ export const useStore = create<AppState>((set) => ({
   updateMeeting: (id, updates) => set((state) => ({
     meetings: state.meetings.map(m => m.id === id ? { ...m, ...updates } : m)
   })),
+  setMeetings: (meetings) => set({ meetings }),
 
   // Issue Actions
   addIssue: (issue) => set((state) => ({

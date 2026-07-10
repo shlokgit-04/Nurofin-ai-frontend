@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { Meeting } from '@/types';
@@ -15,17 +15,49 @@ import {
   FileText, 
   Plus, 
   Loader2,
-  Save
+  Save,
+  AlertCircle
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
 export default function MeetingsPage() {
-  const { meetings, addMeeting, updateMeeting } = useStore();
-  const [selectedId, setSelectedId] = useState<string>(meetings[0]?.id || '');
+  const { meetings, setMeetings, addMeeting, updateMeeting } = useStore();
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loadingMoM, setLoadingMoM] = useState(false);
   const [generatedMoM, setGeneratedMoM] = useState<string | null>(null);
   const [momOpen, setMomOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadMeetings() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await meetingsService.getMeetings();
+        if (active) {
+          setMeetings(data);
+          if (data.length > 0) {
+            setSelectedId(data[0].id);
+          }
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Failed to load meetings');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+    loadMeetings();
+    return () => {
+      active = false;
+    };
+  }, [setMeetings]);
 
   const selectedMeeting = meetings.find(m => m.id === selectedId) || meetings[0];
 
@@ -61,6 +93,33 @@ export default function MeetingsPage() {
       default: return <MapPin className="w-4 h-4 text-accent-green" />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-text-muted">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <span className="text-sm font-medium">Loading meetings...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 max-w-md mx-auto text-center">
+        <AlertCircle className="w-10 h-10 text-accent-red" />
+        <div>
+          <h3 className="text-sm font-bold text-text-primary mb-1">Failed to Load Meetings</h3>
+          <p className="text-xs text-text-muted leading-relaxed">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto font-sans text-text-primary">

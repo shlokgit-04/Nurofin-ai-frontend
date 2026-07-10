@@ -37,11 +37,10 @@ export const aiService = {
   },
 
   getAiRecommendations: async (): Promise<string[]> => {
-    return Promise.resolve([
-      "Authorize Acme payout ($12.4K) to unblock Project Alpha credentials.",
-      "Schedule follow-up with John Doe on PostgreSQL database sharding standards.",
-      "Review CORS endpoint policy rules to fix static image preflight blocks.",
-      "Confirm AWS ledger DB instances budget allocation before August renewal.",
-    ]);
+    const res = await fetch('/api/ai/recommendations');
+    if (!res.ok) {
+      throw new Error('Failed to fetch AI recommendations');
+    }
+    return res.json();
   },
 };
