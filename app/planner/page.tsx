@@ -27,17 +27,9 @@ interface EventItem {
   dayOfWeek: number; // 1 = Mon, 5 = Fri
 }
 
-const mockEvents: EventItem[] = [
-  { id: 'ev-1', title: 'Acme Seat License Auditing', date: '2026-07-06', time: '09:00', duration: '60 mins', type: 'video', details: 'Clarify API CORS blocks with Sarah.', dayOfWeek: 1 },
-  { id: 'ev-2', title: 'Executive Operations Briefing', date: '2026-07-06', time: '14:00', duration: '45 mins', type: 'in-person', details: 'Approve budget limits with Vincent.', dayOfWeek: 1 },
-  { id: 'ev-3', title: 'Compliance Signature Due Date', date: '2026-07-07', time: '17:00', duration: '15 mins', type: 'reminder', details: 'Check Q2 compliance formats.', dayOfWeek: 2 },
-  { id: 'ev-4', title: 'PostgreSQL DB Sharding Review', date: '2026-07-08', time: '11:00', duration: '90 mins', type: 'video', details: 'Database sharding metrics with John.', dayOfWeek: 3 },
-  { id: 'ev-5', title: 'AWS Instances Renewal Pre-sync', date: '2026-07-09', time: '15:30', duration: '30 mins', type: 'video', details: 'Confirm DB scale sizes.', dayOfWeek: 4 },
-];
-
 export default function PlannerPage() {
   const [selectedDate, setSelectedDate] = useState('2026-07-06');
-  const [events, setEvents] = useState<EventItem[]>(mockEvents);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('2026-07-06');
   const [newEventTime, setNewEventTime] = useState('10:00');
@@ -53,7 +45,7 @@ export default function PlannerPage() {
       time: newEventTime,
       duration: '60 mins',
       type: 'reminder',
-      details: 'Mock added reminder event.',
+      details: '',
       dayOfWeek: new Date(newEventDate).getDay(),
     };
     setEvents([...events, item]);
