@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
+import { projectsService } from '@/services/projects';
 import { 
   Briefcase, 
   Users, 
@@ -12,12 +13,44 @@ import {
   Clock, 
   AlertCircle, 
   CheckCircle,
-  Plus
+  Plus,
+  Loader2
 } from 'lucide-react';
 
 export default function ProjectsPage() {
-  const { projects } = useStore();
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
+  const { projects, setProjects } = useStore();
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadProjects() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await projectsService.getProjects();
+        if (active) {
+          setProjects(data);
+          if (data.length > 0) {
+            setSelectedProjectId(data[0].id);
+          }
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Failed to load projects');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+    loadProjects();
+    return () => {
+      active = false;
+    };
+  }, [setProjects]);
 
   const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
 
@@ -29,6 +62,33 @@ export default function ProjectsPage() {
       default: return 'text-accent-red bg-accent-red/10 border-accent-red/20';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-text-muted">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <span className="text-sm font-medium">Loading projects...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 max-w-md mx-auto text-center">
+        <AlertCircle className="w-10 h-10 text-accent-red" />
+        <div>
+          <h3 className="text-sm font-bold text-text-primary mb-1">Failed to Load Projects</h3>
+          <p className="text-xs text-text-muted leading-relaxed">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto font-sans text-text-primary">
