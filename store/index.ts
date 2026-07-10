@@ -55,6 +55,7 @@ interface AppState {
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   changeTaskStatus: (id: string, status: TaskStatus) => void;
+  setTasks: (tasks: Task[]) => void;
 
   // Meeting Actions
   addMeeting: (meeting: Meeting) => void;
@@ -134,53 +135,7 @@ export const useStore = create<AppState>((set) => ({
   projects: [],
 
   // Mock Tasks (Work Center)
-  tasks: [
-    {
-      id: 'task-1',
-      title: 'Review Overdue Acme Corp Invoice',
-      description: 'Verify if the corporate compliance guidelines match the Acme budget increase. Approve or request adjustments.',
-      status: 'todo',
-      priority: 'high',
-      dueDate: '2026-07-04',
-      assignedTo: { name: 'Vincent N.', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100' },
-      projectName: 'Project Alpha (Core Ledger)',
-      projectId: 'proj-1',
-      comments: [
-        { id: 'c-1', author: 'Sarah Connor', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50', text: 'This payment is blocking Acme developer access keys.', time: '2 hours ago' },
-      ],
-    },
-    {
-      id: 'task-2',
-      title: 'Audit Executive AI Security Clearance',
-      description: 'Assess the vector database encryption layer and ensure tenant isolation parameters are enforced.',
-      status: 'in_progress',
-      priority: 'high',
-      dueDate: '2026-07-08',
-      assignedTo: { name: 'Aryan Dev', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100' },
-      projectName: 'Project Delta (GetStream Chat Integration)',
-      projectId: 'proj-2',
-    },
-    {
-      id: 'task-3',
-      title: 'Design Budget Allocation for Q3/Q4',
-      description: 'Allocate infrastructure funding and headcount budget caps for financial ledger sharding operations.',
-      status: 'review',
-      priority: 'medium',
-      dueDate: '2026-07-15',
-      assignedTo: { name: 'Vincent N.', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100' },
-    },
-    {
-      id: 'task-4',
-      title: 'Configure CORS Guidelines on Static Bucket',
-      description: 'Open origins to allowed enterprise endpoints and disable wildcard endpoints.',
-      status: 'done',
-      priority: 'low',
-      dueDate: '2026-06-12',
-      assignedTo: { name: 'John Doe', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' },
-      projectName: 'Corporate Site V2',
-      projectId: 'proj-3',
-    },
-  ],
+  tasks: [],
 
   // Mock Meetings
   meetings: [
@@ -335,6 +290,7 @@ export const useStore = create<AppState>((set) => ({
   changeTaskStatus: (id, status) => set((state) => ({
     tasks: state.tasks.map(t => t.id === id ? { ...t, status } : t)
   })),
+  setTasks: (tasks) => set({ tasks }),
 
   // Meeting Actions
   addMeeting: (meeting) => set((state) => ({

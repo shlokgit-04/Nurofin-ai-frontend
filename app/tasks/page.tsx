@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
+import { tasksService } from '@/services/tasks';
 import { Task, TaskStatus, TaskPriority } from '@/types';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
@@ -30,7 +31,9 @@ import {
   Edit, 
   Trash, 
   User, 
-  Calendar 
+  Calendar,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 const taskSchema = z.object({
@@ -44,11 +47,13 @@ const taskSchema = z.object({
 type TaskFormValues = z.infer<typeof taskSchema>;
 
 export default function WorkCenterPage() {
-  const { tasks, addTask, updateTask, deleteTask, changeTaskStatus } = useStore();
+  const { tasks, addTask, updateTask, deleteTask, changeTaskStatus, setTasks } = useStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
@@ -59,6 +64,32 @@ export default function WorkCenterPage() {
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
   });
+
+  useEffect(() => {
+    let active = true;
+    async function loadTasks() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await tasksService.getTasks();
+        if (active) {
+          setTasks(data);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err.message || 'Failed to load tasks');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+    loadTasks();
+    return () => {
+      active = false;
+    };
+  }, [setTasks]);
 
   const getPriorityColor = (prio: TaskPriority) => {
     switch (prio) {
@@ -112,21 +143,53 @@ export default function WorkCenterPage() {
   };
 
   // Handle Form Submission
-  const onSubmit = (data: TaskFormValues) => {
-    if (editMode && selectedTask) {
-      updateTask(selectedTask.id, data);
-    } else {
-      addTask({
-        ...data,
-        id: `task-${Date.now()}`,
-        assignedTo: {
-          name: 'Vincent N.',
-          avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
-        },
-      });
+  const onSubmit = async (data: TaskFormValues) => {
+    try {
+      if (editMode && selectedTask) {
+        const updated = await tasksService.updateTask(selectedTask.id, data);
+        updateTask(selectedTask.id, updated);
+      } else {
+        const created = await tasksService.createTask({
+          ...data,
+          assignedTo: {
+            name: 'Vincent N.',
+            avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
+          },
+        });
+        addTask(created);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      console.error(err);
     }
-    setModalOpen(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-text-muted">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+        <span className="text-sm font-medium">Loading tasks...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 max-w-md mx-auto text-center">
+        <AlertCircle className="w-10 h-10 text-accent-red" />
+        <div>
+          <h3 className="text-sm font-bold text-text-primary mb-1">Failed to Load Tasks</h3>
+          <p className="text-xs text-text-muted leading-relaxed">{error}</p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans text-text-primary">
@@ -201,7 +264,15 @@ export default function WorkCenterPage() {
                         >
                           <select
                             value={task.status}
-                            onChange={(e) => changeTaskStatus(task.id, e.target.value as TaskStatus)}
+                            onChange={async (e) => {
+                              const nextStatus = e.target.value as TaskStatus;
+                              try {
+                                await tasksService.updateTask(task.id, { status: nextStatus });
+                                changeTaskStatus(task.id, nextStatus);
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
                             className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer"
                           >
                             <option value="todo">To Do</option>
@@ -340,9 +411,14 @@ export default function WorkCenterPage() {
 
             <DialogFooter className="mt-4 gap-2">
               <button
-                onClick={() => {
-                  deleteTask(selectedTask.id);
-                  setDetailsOpen(false);
+                onClick={async () => {
+                  try {
+                    await tasksService.deleteTask(selectedTask.id);
+                    deleteTask(selectedTask.id);
+                    setDetailsOpen(false);
+                  } catch (err) {
+                    console.error(err);
+                  }
                 }}
                 className="px-3 py-1.5 bg-accent-red/10 border border-accent-red/20 text-accent-red text-2xs font-semibold rounded hover:bg-accent-red/20 transition-all flex items-center gap-1"
               >
