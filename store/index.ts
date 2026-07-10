@@ -70,7 +70,7 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   // Navigation & Shell Defaults
   sidebarCollapsed: false,
-  theme: 'dark',
+  theme: 'light',
   searchQuery: '',
   activeTab: 'dashboard',
   aiStatus: 'idle',
@@ -328,7 +328,12 @@ export const useStore = create<AppState>((set) => ({
 
   // Shell State Mutators
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nurofin-theme', theme);
+    }
+    set({ theme });
+  },
   setSearchQuery: (query) => set({ searchQuery: query }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setAiStatus: (status) => set({ aiStatus: status }),

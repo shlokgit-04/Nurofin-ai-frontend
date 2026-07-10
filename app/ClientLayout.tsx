@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
+import GlobalChat from '@/components/layout/GlobalChat';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,7 +14,7 @@ export default function ClientLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarCollapsed, theme } = useStore();
+  const { sidebarCollapsed, theme, setTheme } = useStore();
   const pathname = usePathname();
   const isLoginPage = pathname === '/login';
 
@@ -26,6 +27,14 @@ export default function ClientLayout({
       },
     },
   }));
+
+  // Read persisted theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('nurofin-theme') as 'dark' | 'light' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, [setTheme]);
 
   // Synchronize dynamic theme state to HTML document class list
   useEffect(() => {
@@ -69,6 +78,8 @@ export default function ClientLayout({
           <main className="flex-1 pt-16 p-6 overflow-y-auto">
             {children}
           </main>
+          {/* Floating AI Helper overlay */}
+          <GlobalChat />
         </div>
       </div>
     </QueryClientProvider>
