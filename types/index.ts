@@ -30,12 +30,17 @@ export interface Project {
   id: string;
   name: string;
   description: string;
-  status: 'planning' | 'active' | 'completed' | 'delayed';
+  status: 'planning' | 'active' | 'completed' | 'delayed' | 'on_hold' | 'cancelled';
   progress: number;
   startDate: string;
   endDate: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  gitUrl?: string;
+  budget?: number;
+  spending?: number;
   members: ProjectMember[];
   activities: ProjectActivity[];
+  tasks?: Task[];
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';

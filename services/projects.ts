@@ -24,13 +24,29 @@ export const projectsService = {
       progress: p.progress,
       startDate: p.start_date || '',
       endDate: p.end_date || '',
+      priority: p.priority || 'medium',
+      gitUrl: p.git_url || '',
+      budget: p.budget || 0,
+      spending: p.spending || 0,
       members: p.members?.map((m: any) => ({
         id: m.id.toString(),
         name: m.name,
         role: m.role || 'Member',
         avatar: m.avatar || ''
       })) || [],
-      activities: []
+      activities: [],
+      tasks: p.tasks?.map((t: any) => ({
+        id: t.id.toString(),
+        title: t.title,
+        description: t.description || '',
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.deadline || '',
+        assignedTo: t.assigned_to ? {
+          name: t.assigned_to.name || t.assigned_to.full_name || '',
+          avatar: t.assigned_to.avatar || t.assigned_to.profile_picture || ''
+        } : undefined
+      })) || []
     }));
   },
   
@@ -41,7 +57,11 @@ export const projectsService = {
       status: project.status,
       progress: project.progress,
       start_date: project.startDate,
-      end_date: project.endDate
+      end_date: project.endDate,
+      priority: project.priority || 'medium',
+      git_url: project.gitUrl || '',
+      budget: project.budget || 0,
+      spending: project.spending || 0
     };
     const res = await fetch('/api/v1/projects/', {
       method: 'POST',
@@ -59,13 +79,29 @@ export const projectsService = {
       progress: p.progress,
       startDate: p.start_date || '',
       endDate: p.end_date || '',
+      priority: p.priority || 'medium',
+      gitUrl: p.git_url || '',
+      budget: p.budget || 0,
+      spending: p.spending || 0,
       members: p.members?.map((m: any) => ({
         id: m.id.toString(),
         name: m.name,
         role: m.role || 'Member',
         avatar: m.avatar || ''
       })) || [],
-      activities: []
+      activities: [],
+      tasks: p.tasks?.map((t: any) => ({
+        id: t.id.toString(),
+        title: t.title,
+        description: t.description || '',
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.deadline || '',
+        assignedTo: t.assigned_to ? {
+          name: t.assigned_to.name || t.assigned_to.full_name || '',
+          avatar: t.assigned_to.avatar || t.assigned_to.profile_picture || ''
+        } : undefined
+      })) || []
     };
   },
   
@@ -76,7 +112,11 @@ export const projectsService = {
       status: project.status,
       progress: project.progress,
       start_date: project.startDate,
-      end_date: project.endDate
+      end_date: project.endDate,
+      priority: project.priority || 'medium',
+      git_url: project.gitUrl || '',
+      budget: project.budget || 0,
+      spending: project.spending || 0
     };
     const res = await fetch(`/api/v1/projects/${id}`, {
       method: 'PUT',
@@ -94,13 +134,29 @@ export const projectsService = {
       progress: p.progress,
       startDate: p.start_date || '',
       endDate: p.end_date || '',
+      priority: p.priority || 'medium',
+      gitUrl: p.git_url || '',
+      budget: p.budget || 0,
+      spending: p.spending || 0,
       members: p.members?.map((m: any) => ({
         id: m.id.toString(),
         name: m.name,
         role: m.role || 'Member',
         avatar: m.avatar || ''
       })) || [],
-      activities: []
+      activities: [],
+      tasks: p.tasks?.map((t: any) => ({
+        id: t.id.toString(),
+        title: t.title,
+        description: t.description || '',
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.deadline || '',
+        assignedTo: t.assigned_to ? {
+          name: t.assigned_to.name || t.assigned_to.full_name || '',
+          avatar: t.assigned_to.avatar || t.assigned_to.profile_picture || ''
+        } : undefined
+      })) || []
     };
   },
   
