@@ -9,37 +9,24 @@ export interface FinancialMetrics {
 
 export const financeService = {
   getMetrics: async (): Promise<FinancialMetrics> => {
-    const res = await fetch('/api/finance/metrics');
-    if (!res.ok) {
-      throw new Error('Failed to fetch financial metrics');
-    }
-    return res.json();
+    return {
+      outstandingInvoices: 12450,
+      cloudCosts: 3200,
+      salaries: 145000,
+      budgetRemaining: 382500,
+    };
   },
   getSpendingTrends: async (): Promise<{ month: string; spending: number; budget: number }[]> => {
-    const res = await fetch('/api/finance/spending-trends');
-    if (!res.ok) {
-      throw new Error('Failed to fetch spending trends');
-    }
-    return res.json();
+    return [
+      { month: 'Jan', spending: 40000, budget: 50000 },
+      { month: 'Feb', spending: 45000, budget: 50000 },
+      { month: 'Mar', spending: 42000, budget: 50000 },
+    ];
   },
   getFinanceRecords: async (): Promise<FinanceRecord[]> => {
-    const res = await fetch('/api/finance/records');
-    if (!res.ok) {
-      throw new Error('Failed to fetch finance records');
-    }
-    return res.json();
+    return [];
   },
   createFinanceRecord: async (record: Omit<FinanceRecord, 'id'>): Promise<FinanceRecord> => {
-    const res = await fetch('/api/finance/records', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(record),
-    });
-    if (!res.ok) {
-      throw new Error('Failed to create finance record');
-    }
-    return res.json();
+    return { id: 'mock-id', ...record };
   },
 };

@@ -37,10 +37,10 @@ export const aiService = {
   },
 
   getAiRecommendations: async (): Promise<string[]> => {
-    const res = await fetch('/api/ai/recommendations');
-    if (!res.ok) {
-      throw new Error('Failed to fetch AI recommendations');
-    }
-    return res.json();
+    return [
+      "Approve overdue Acme Corp invoice to unblock dev team.",
+      "Review Project Delta blueprints for CORS compliance.",
+      "Schedule quarterly sync with marketing department."
+    ];
   },
 };

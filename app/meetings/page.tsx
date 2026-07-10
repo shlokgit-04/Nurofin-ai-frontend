@@ -20,6 +20,18 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const meetingSchema = z.object({
+  title: z.string().min(3, 'Title is required'),
+  date: z.string().min(1, 'Date is required'),
+  time: z.string().min(1, 'Time is required'),
+  type: z.enum(['video', 'in-person']).default('video'),
+});
+type MeetingFormValues = z.infer<typeof meetingSchema>;
 
 export default function MeetingsPage() {
   const { meetings, setMeetings, addMeeting, updateMeeting } = useStore();
@@ -29,6 +41,13 @@ export default function MeetingsPage() {
   const [loadingMoM, setLoadingMoM] = useState(false);
   const [generatedMoM, setGeneratedMoM] = useState<string | null>(null);
   const [momOpen, setMomOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [filter, setFilter] = useState<'today' | 'weekly' | 'monthly' | 'all'>('all');
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<MeetingFormValues>({
+    resolver: zodResolver(meetingSchema),
+    defaultValues: { date: new Date().toISOString().split('T')[0], time: '10:00', type: 'video' }
+  });
 
   useEffect(() => {
     let active = true;
@@ -36,11 +55,15 @@ export default function MeetingsPage() {
       try {
         setLoading(true);
         setError(null);
-        const data = await meetingsService.getMeetings();
+        const data = filter === 'all' 
+          ? await meetingsService.getMeetings()
+          : await meetingsService.getMeetings(filter as any);
         if (active) {
           setMeetings(data);
           if (data.length > 0) {
             setSelectedId(data[0].id);
+          } else {
+            setSelectedId('');
           }
         }
       } catch (err: any) {
@@ -57,7 +80,24 @@ export default function MeetingsPage() {
     return () => {
       active = false;
     };
-  }, [setMeetings]);
+  }, [setMeetings, filter]);
+
+  const onSubmit = async (data: MeetingFormValues) => {
+    try {
+      const created = await meetingsService.createMeeting({
+        title: data.title,
+        date: data.date,
+        time: data.time,
+        type: data.type
+      });
+      addMeeting(created);
+      setSelectedId(created.id);
+      setCreateModalOpen(false);
+      reset();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const selectedMeeting = meetings.find(m => m.id === selectedId) || meetings[0];
 
@@ -126,11 +166,29 @@ export default function MeetingsPage() {
       
       {/* Left Column: Meetings directory roster */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between bg-background-secondary p-4 rounded-lg border border-border-subtle shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-background-secondary p-4 rounded-lg border border-border-subtle shadow-sm gap-4">
           <h3 className="text-sm font-bold flex items-center gap-2">
             <Users className="w-4 h-4 text-text-secondary" />
             Meeting Syncs ({meetings.length})
           </h3>
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Event
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {['all', 'today', 'weekly', 'monthly'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f as any)}
+              className={cn("px-3 py-1.5 text-xs font-bold rounded-md border capitalize", filter === f ? "bg-accent-blue/10 border-accent-blue text-accent-blue" : "bg-background-primary border-border-subtle text-text-secondary hover:border-text-muted")}
+            >
+              {f}
+            </button>
+          ))}
         </div>
 
         <div className="space-y-3">
@@ -323,6 +381,77 @@ export default function MeetingsPage() {
         </Dialog>
       )}
 
+      {/* Add Event Modal */}
+      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Schedule New Meeting</DialogTitle>
+            <DialogDescription>
+              Create a new meeting event and send invites to the team.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2 text-xs font-sans">
+            <div className="space-y-1.5">
+              <label className="text-2xs font-bold text-text-secondary uppercase">Meeting Title</label>
+              <Input
+                type="text"
+                placeholder="Q3 Planning Sync"
+                {...register('title')}
+                className={errors.title ? 'border-accent-red' : ''}
+              />
+              {errors.title && <span className="text-[10px] text-accent-red">{errors.title.message as string}</span>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Date</label>
+                <Input
+                  type="date"
+                  {...register('date')}
+                  className={errors.date ? 'border-accent-red' : ''}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Time</label>
+                <Input
+                  type="time"
+                  {...register('time')}
+                  className={errors.time ? 'border-accent-red' : ''}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-2xs font-bold text-text-secondary uppercase">Meeting Format</label>
+              <select
+                className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none"
+                {...register('type')}
+              >
+                <option value="video">Video Call (Zoom/Meet)</option>
+                <option value="in-person">In-Person (HQ)</option>
+              </select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCreateModalOpen(false)}
+                className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-2xs font-semibold rounded transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-2xs font-semibold rounded shadow transition-all"
+              >
+                Schedule Event
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

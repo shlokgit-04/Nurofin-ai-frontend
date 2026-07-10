@@ -7,7 +7,9 @@ import * as z from 'zod';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { tasksService } from '@/services/tasks';
-import { Task, TaskStatus, TaskPriority } from '@/types';
+import { projectsService } from '@/services/projects';
+import { usersService } from '@/services/users';
+import { Task, TaskStatus, TaskPriority, Project, User } from '@/types';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   Dialog, 
@@ -42,6 +44,8 @@ const taskSchema = z.object({
   status: z.enum(['todo', 'in_progress', 'review', 'done'] as const),
   priority: z.enum(['low', 'medium', 'high'] as const),
   dueDate: z.string().min(1, 'Due date is required'),
+  assigneeId: z.string().optional(),
+  projectId: z.string().optional(),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -65,15 +69,24 @@ export default function WorkCenterPage() {
     resolver: zodResolver(taskSchema),
   });
 
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+
   useEffect(() => {
     let active = true;
-    async function loadTasks() {
+    async function loadData() {
       try {
         setLoading(true);
         setError(null);
-        const data = await tasksService.getTasks();
+        const [tasksData, usersData, projectsData] = await Promise.all([
+          tasksService.getTasks(),
+          usersService.getUsers(),
+          projectsService.getProjects()
+        ]);
         if (active) {
-          setTasks(data);
+          setTasks(tasksData);
+          setAvailableUsers(usersData);
+          setAvailableProjects(projectsData);
         }
       } catch (err: any) {
         if (active) {
@@ -85,7 +98,7 @@ export default function WorkCenterPage() {
         }
       }
     }
-    loadTasks();
+    loadData();
     return () => {
       active = false;
     };
@@ -137,6 +150,8 @@ export default function WorkCenterPage() {
       status: task.status,
       priority: task.priority,
       dueDate: task.dueDate,
+      assigneeId: (task as any).assigneeId || '',
+      projectId: task.projectId || '',
     });
     setModalOpen(true);
     setDetailsOpen(false);
@@ -151,10 +166,6 @@ export default function WorkCenterPage() {
       } else {
         const created = await tasksService.createTask({
           ...data,
-          assignedTo: {
-            name: 'Vincent N.',
-            avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
-          },
         });
         addTask(created);
       }
@@ -464,6 +475,34 @@ export default function WorkCenterPage() {
                 rows={3}
                 {...register('description')}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Assignee</label>
+                <select
+                  className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none"
+                  {...register('assigneeId')}
+                >
+                  <option value="">Unassigned</option>
+                  {availableUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Project Link</label>
+                <select
+                  className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none"
+                  {...register('projectId')}
+                >
+                  <option value="">No Project (General)</option>
+                  {availableProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

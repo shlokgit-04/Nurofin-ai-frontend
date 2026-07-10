@@ -21,6 +21,7 @@ import { cn } from '@/utils/cn';
 import { tasksService } from '@/services/tasks';
 import { projectsService } from '@/services/projects';
 import { meetingsService } from '@/services/meetings';
+import { dashboardService, DashboardSummary } from '@/services/dashboard';
 import { financeService, FinancialMetrics } from '@/services/finance';
 import { aiService } from '@/services/ai';
 
@@ -35,6 +36,7 @@ export default function Dashboard() {
     setProjects 
   } = useStore();
 
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
   const [aiRecommendations, setAiRecommendations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,10 +50,11 @@ export default function Dashboard() {
         setError(null);
         
         // Fetch all dashboard data concurrently
-        const [tasksData, projectsData, meetingsData, metricsData, recommendationsData] = await Promise.all([
+        const [tasksData, projectsData, meetingsData, summaryData, metricsData, recommendationsData] = await Promise.all([
           tasksService.getTasks(),
           projectsService.getProjects(),
           meetingsService.getMeetings(),
+          dashboardService.getSummary(),
           financeService.getMetrics(),
           aiService.getAiRecommendations(),
         ]);
@@ -60,6 +63,7 @@ export default function Dashboard() {
           setTasks(tasksData);
           setProjects(projectsData);
           setMeetings(meetingsData);
+          setSummary(summaryData);
           setMetrics(metricsData);
           setAiRecommendations(recommendationsData);
         }
@@ -151,7 +155,7 @@ export default function Dashboard() {
           </div>
           <div>
             <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Meetings Today</span>
-            <span className="text-xl font-extrabold">{meetingsToday.length}</span>
+            <span className="text-xl font-extrabold">{summary?.todayMeetings || 0}</span>
           </div>
         </div>
 
@@ -162,7 +166,7 @@ export default function Dashboard() {
           </div>
           <div>
             <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Assigned Tasks</span>
-            <span className="text-xl font-extrabold">{assignedTasks.length}</span>
+            <span className="text-xl font-extrabold">{summary?.todayTasks || 0}</span>
           </div>
         </div>
 
@@ -173,7 +177,7 @@ export default function Dashboard() {
           </div>
           <div>
             <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block">Overdue Tasks</span>
-            <span className="text-xl font-extrabold text-accent-red">{overdueTasks.length}</span>
+            <span className="text-xl font-extrabold text-accent-red">{summary?.overdueTasks || 0}</span>
           </div>
         </div>
 

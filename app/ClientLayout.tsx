@@ -7,7 +7,7 @@ import GlobalChat from '@/components/layout/GlobalChat';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function ClientLayout({
   children,
@@ -16,7 +16,16 @@ export default function ClientLayout({
 }) {
   const { sidebarCollapsed, theme, setTheme } = useStore();
   const pathname = usePathname();
+  const router = useRouter();
   const isLoginPage = pathname === '/login';
+
+  // Auth Guard: Redirect to login if no token is found
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token && !isLoginPage) {
+      router.push('/login');
+    }
+  }, [isLoginPage, router]);
 
   // Instantiate React Query client
   const [queryClient] = useState(() => new QueryClient({
