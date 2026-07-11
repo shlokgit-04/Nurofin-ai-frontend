@@ -29,7 +29,7 @@ const meetingSchema = z.object({
   title: z.string().min(3, 'Title is required'),
   date: z.string().min(1, 'Date is required'),
   time: z.string().min(1, 'Time is required'),
-  type: z.enum(['video', 'in-person']).default('video'),
+  type: z.enum(['video', 'in-person']),
 });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 
