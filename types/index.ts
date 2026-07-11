@@ -10,6 +10,13 @@ export interface UserProfile {
   linkedin?: string;
   phone?: string;
 }
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string;
+}
 
 export interface ProjectMember {
   id: string;
