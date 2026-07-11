@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { UserProfile as User } from '../types';
 
 const getHeaders = () => {
   let token = '';

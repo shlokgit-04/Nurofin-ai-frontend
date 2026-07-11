@@ -86,7 +86,7 @@ export interface Meeting {
   attendees: string[];
   notes?: string;
   momText?: string;
-  type: 'video' | 'in-person' | 'hybrid';
+  type: string;
 }
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved';

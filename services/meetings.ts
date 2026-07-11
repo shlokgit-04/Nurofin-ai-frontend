@@ -26,7 +26,7 @@ export const meetingsService = {
       attendees: m.participants?.map((p: any) => p.name) || [],
       notes: m.description || '',
       momText: '',
-      type: m.type === 'meeting' ? 'video' : 'in-person'
+      type: m.type || 'meeting'
     }));
   },
   
@@ -42,7 +42,7 @@ export const meetingsService = {
       description: meeting.notes,
       date: meeting.date,
       start_time: meeting.time,
-      type: 'meeting'
+      type: meeting.type || 'meeting'
     };
     const res = await fetch('/api/v1/meetings/', {
       method: 'POST',
@@ -60,7 +60,7 @@ export const meetingsService = {
       duration: m.end_time ? `${m.start_time} - ${m.end_time}` : '1h',
       attendees: m.participants?.map((p: any) => p.name) || [],
       notes: m.description || '',
-      type: 'video'
+      type: m.type || 'meeting'
     };
   },
   
@@ -69,7 +69,8 @@ export const meetingsService = {
       title: meeting.title,
       description: meeting.notes,
       date: meeting.date,
-      start_time: meeting.time
+      start_time: meeting.time,
+      type: meeting.type || 'meeting'
     };
     const res = await fetch(`/api/v1/meetings/${id}`, {
       method: 'PUT',
@@ -87,7 +88,7 @@ export const meetingsService = {
       duration: m.end_time ? `${m.start_time} - ${m.end_time}` : '1h',
       attendees: m.participants?.map((p: any) => p.name) || [],
       notes: m.description || '',
-      type: 'video'
+      type: m.type || 'meeting'
     };
   },
   

@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { projectsService } from '@/services/projects';
 import { usersService } from '@/services/users';
-import { User } from '@/types';
+import { UserProfile as User } from '@/types';
 import { 
   Briefcase, 
   Users, 
@@ -114,8 +114,8 @@ export default function ProjectsPage() {
       });
       
       // Add selected members to the project
-      if (data.members && data.members.length > 0) {
-        for (const userId of data.members) {
+      if (members && members.length > 0) {
+        for (const userId of members) {
           await projectsService.addMember(created.id, userId);
         }
         // Refresh project to get full members list
@@ -669,7 +669,7 @@ export default function ProjectsPage() {
                             checked={isCompleted}
                             onChange={async () => {
                               try {
-                                const newStatus = isCompleted ? 'todo' : 'completed';
+                                const newStatus = isCompleted ? 'todo' : 'done';
                                 await fetch(`/api/v1/tasks/${task.id}`, {
                                   method: 'PUT',
                                   headers: {
