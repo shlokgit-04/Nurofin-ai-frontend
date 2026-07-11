@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { projectsService } from '@/services/projects';
 import { usersService } from '@/services/users';
-import { User } from '@/types';
+import { UserProfile as User } from '@/types';
 import { 
   Briefcase, 
   Users, 
@@ -33,8 +33,8 @@ const projectSchema = z.object({
   status: z.enum(['planning', 'active', 'completed']),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
-  budget: z.number().optional().default(0),
+  priority: z.enum(['low', 'medium', 'high', 'critical']),
+  budget: z.number().optional(),
   gitUrl: z.string().optional(),
   members: z.array(z.string()).optional(),
 });
@@ -103,14 +103,15 @@ export default function ProjectsPage() {
 
   const onSubmit = async (data: ProjectFormValues) => {
     try {
+      const { members, ...projectData } = data;
       const created = await projectsService.createProject({
-        ...data,
+        ...projectData,
         progress: 0
       });
       
       // Add selected members to the project
-      if (data.members && data.members.length > 0) {
-        for (const userId of data.members) {
+      if (members && members.length > 0) {
+        for (const userId of members) {
           await projectsService.addMember(created.id, userId);
         }
         // Refresh project to get full members list
@@ -484,7 +485,7 @@ export default function ProjectsPage() {
                 {/* Tasks List */}
                 <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                   {(selectedProject.tasks || []).map((task) => {
-                    const isCompleted = task.status === 'completed';
+                    const isCompleted = task.status === 'done';
                     return (
                       <div 
                         key={task.id} 
@@ -501,7 +502,7 @@ export default function ProjectsPage() {
                             checked={isCompleted}
                             onChange={async () => {
                               try {
-                                const newStatus = isCompleted ? 'todo' : 'completed';
+                                const newStatus = isCompleted ? 'todo' : 'done';
                                 await fetch(`/api/v1/tasks/${task.id}`, {
                                   method: 'PUT',
                                   headers: {
@@ -525,7 +526,7 @@ export default function ProjectsPage() {
                             <span className="text-[9px] text-text-muted flex items-center gap-1.5 mt-0.5">
                               <span className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                task.priority === 'high' || task.priority === 'critical' ? 'bg-accent-red' : task.priority === 'medium' ? 'bg-accent-blue' : 'bg-accent-green'
+                                task.priority === 'high' ? 'bg-accent-red' : task.priority === 'medium' ? 'bg-accent-blue' : 'bg-accent-green'
                               )} />
                               {task.priority} Priority
                             </span>

@@ -9,7 +9,7 @@ import { cn } from '@/utils/cn';
 import { tasksService } from '@/services/tasks';
 import { projectsService } from '@/services/projects';
 import { usersService } from '@/services/users';
-import { Task, TaskStatus, TaskPriority, Project, User } from '@/types';
+import { Task, TaskStatus, TaskPriority, Project, UserProfile as UserType } from '@/types';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   Dialog, 
@@ -69,7 +69,7 @@ export default function WorkCenterPage() {
     resolver: zodResolver(taskSchema),
   });
 
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<UserType[]>([]);
   const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
 
   useEffect(() => {
