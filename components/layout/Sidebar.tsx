@@ -42,8 +42,8 @@ const navItems: NavItem[] = [
   { label: 'Finance', href: '/finance', icon: DollarSign },
   { label: 'AI Assistant', href: '/chat', icon: BrainCircuit },
   { label: 'Notifications', href: '/notifications', icon: Bell },
-  { label: 'Profile', href: '/profile', icon: UserCircle },
-  { label: 'Admin Panel', href: '/admin', icon: Settings },
+  { label: 'Account Settings', href: '/profile', icon: UserCircle },
+  { label: 'User Management', href: '/admin', icon: Settings },
 ];
 
 export default function Sidebar() {

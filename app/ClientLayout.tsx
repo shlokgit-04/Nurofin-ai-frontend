@@ -8,24 +8,46 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
+import { authService } from '@/services/auth';
 
 export default function ClientLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarCollapsed, theme, setTheme } = useStore();
+  const { sidebarCollapsed, theme, setTheme, updateUserProfile } = useStore();
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === '/login';
 
-  // Auth Guard: Redirect to login if no token is found
+  // Auth Guard & User Profile loader: Redirect to login if no token is found, fetch me details if exists
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
-    if (!token && !isLoginPage) {
+    if (token) {
+      authService.getMe()
+        .then((user) => {
+          updateUserProfile({
+            id: String(user.id),
+            name: user.full_name || "User",
+            email: user.email,
+            role: user.role || "Member",
+            department: user.department || "General",
+            phone: user.phone || "",
+            github: user.github || "",
+            linkedin: user.linkedin || "",
+            avatar: user.profile_picture || ""
+          });
+        })
+        .catch(() => {
+          localStorage.removeItem('auth_token');
+          if (!isLoginPage) {
+            router.push('/login');
+          }
+        });
+    } else if (!isLoginPage) {
       router.push('/login');
     }
-  }, [isLoginPage, router]);
+  }, [isLoginPage, router, updateUserProfile]);
 
   // Instantiate React Query client
   const [queryClient] = useState(() => new QueryClient({
