@@ -33,8 +33,8 @@ const projectSchema = z.object({
   status: z.enum(['planning', 'active', 'completed']),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
-  budget: z.number().optional().default(0),
+  priority: z.enum(['low', 'medium', 'high', 'critical']),
+  budget: z.number().optional(),
   gitUrl: z.string().optional(),
   members: z.array(z.string()).optional(),
 });
@@ -52,6 +52,10 @@ export default function ProjectsPage() {
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [quickTaskPriority, setQuickTaskPriority] = useState('medium');
+  const [quickTaskDescription, setQuickTaskDescription] = useState('');
+  const [quickTaskAssignee, setQuickTaskAssignee] = useState('');
+  const [quickTaskDueDate, setQuickTaskDueDate] = useState('');
+  const [quickTaskStatus, setQuickTaskStatus] = useState('todo');
 
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
@@ -103,8 +107,9 @@ export default function ProjectsPage() {
 
   const onSubmit = async (data: ProjectFormValues) => {
     try {
+      const { members, ...projectData } = data;
       const created = await projectsService.createProject({
-        ...data,
+        ...projectData,
         progress: 0
       });
       
@@ -163,11 +168,20 @@ export default function ProjectsPage() {
         },
         body: JSON.stringify({
           title: quickTaskTitle,
+          description: quickTaskDescription || undefined,
+          status: quickTaskStatus,
           priority: quickTaskPriority,
+          deadline: quickTaskDueDate || undefined,
+          assigned_to_id: quickTaskAssignee ? parseInt(quickTaskAssignee) : undefined,
           project_id: parseInt(selectedProjectId)
         })
       });
       setQuickTaskTitle('');
+      setQuickTaskPriority('medium');
+      setQuickTaskDescription('');
+      setQuickTaskAssignee('');
+      setQuickTaskDueDate('');
+      setQuickTaskStatus('todo');
       setQuickTaskOpen(false);
       const refreshed = await projectsService.getProjects();
       setProjects(refreshed);
@@ -177,6 +191,101 @@ export default function ProjectsPage() {
   };
 
   const selectedProject = projects.find(p => p.id === selectedProjectId) || projects[0];
+
+  const [gitCommits, setGitCommits] = useState<any[]>([]);
+  const [loadingCommits, setLoadingCommits] = useState(false);
+
+  useEffect(() => {
+    if (!selectedProject || !selectedProject.gitUrl) {
+      setGitCommits([]);
+      return;
+    }
+
+    const parseGithubUrl = (url: string) => {
+      if (!url) return null;
+      let cleanUrl = url.trim();
+      if (cleanUrl.endsWith('.git')) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 4);
+      }
+      
+      const httpsMatch = cleanUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (httpsMatch) {
+        return { owner: httpsMatch[1], repo: httpsMatch[2] };
+      }
+      
+      const sshMatch = cleanUrl.match(/git@github\.com:([^\/]+)\/([^\/]+)/);
+      if (sshMatch) {
+        return { owner: sshMatch[1], repo: sshMatch[2] };
+      }
+      
+      return null;
+    };
+
+    const parsed = parseGithubUrl(selectedProject.gitUrl);
+    if (!parsed) {
+      setGitCommits([
+        { hash: 'local', author: 'System', branch: 'main', msg: 'Local repository URL: ' + selectedProject.gitUrl, time: 'Now' }
+      ]);
+      return;
+    }
+
+    const { owner, repo } = parsed;
+
+    let active = true;
+    async function fetchCommits() {
+      try {
+        setLoadingCommits(true);
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=5`);
+        if (!res.ok) throw new Error('Failed to fetch github commits');
+        const data = await res.json();
+        if (active) {
+          const formatted = data.map((c: any) => {
+            const dateStr = c.commit.author?.date || c.commit.committer?.date;
+            let timeAgo = 'recently';
+            if (dateStr) {
+              const diffMs = new Date().getTime() - new Date(dateStr).getTime();
+              const diffMins = Math.floor(diffMs / 60000);
+              const diffHours = Math.floor(diffMins / 60);
+              const diffDays = Math.floor(diffHours / 24);
+              if (diffDays > 0) {
+                timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+              } else if (diffHours > 0) {
+                timeAgo = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+              } else if (diffMins > 0) {
+                timeAgo = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+              } else {
+                timeAgo = 'just now';
+              }
+            }
+            return {
+              hash: c.sha.substring(0, 7),
+              author: c.commit.author?.name || 'Unknown',
+              branch: 'main',
+              msg: c.commit.message?.split('\n')[0] || '',
+              time: timeAgo
+            };
+          });
+          setGitCommits(formatted);
+        }
+      } catch (err) {
+        console.error(err);
+        if (active) {
+          setGitCommits([
+            { hash: 'error', author: 'System', branch: 'main', msg: 'Failed to fetch commits from GitHub. Verify it is public.', time: 'Now' }
+          ]);
+        }
+      } finally {
+        if (active) {
+          setLoadingCommits(false);
+        }
+      }
+    }
+
+    fetchCommits();
+    return () => {
+      active = false;
+    };
+  }, [selectedProject]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -452,31 +561,90 @@ export default function ProjectsPage() {
 
                 {/* Quick Create Task Form */}
                 {quickTaskOpen && (
-                  <form onSubmit={handleQuickTaskSubmit} className="p-3 bg-background-primary rounded-lg border border-border-subtle space-y-3 text-2xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <form onSubmit={handleQuickTaskSubmit} className="p-4 bg-background-primary rounded-lg border border-border-subtle space-y-3.5 text-2xs shadow-inner">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Task Title</label>
                       <input 
                         type="text" 
                         placeholder="Task title..." 
                         value={quickTaskTitle}
                         onChange={(e) => setQuickTaskTitle(e.target.value)}
-                        className="w-full bg-background-secondary border border-border-subtle rounded px-2 py-1 text-text-primary outline-none focus:border-accent-blue"
+                        className="w-full bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors"
                         required
                       />
-                      <select
-                        value={quickTaskPriority}
-                        onChange={(e) => setQuickTaskPriority(e.target.value)}
-                        className="bg-background-secondary border border-border-subtle rounded px-2 py-1 text-text-primary outline-none"
-                      >
-                        <option value="low">🟢 Low</option>
-                        <option value="medium">🔵 Medium</option>
-                        <option value="high">🔴 High</option>
-                      </select>
                     </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Description</label>
+                      <textarea 
+                        placeholder="Detail task scope..." 
+                        value={quickTaskDescription}
+                        onChange={(e) => setQuickTaskDescription(e.target.value)}
+                        rows={2}
+                        className="w-full bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Assignee</label>
+                        <select
+                          value={quickTaskAssignee}
+                          onChange={(e) => setQuickTaskAssignee(e.target.value)}
+                          className="w-full h-8 bg-background-secondary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors cursor-pointer"
+                        >
+                          <option value="">Unassigned</option>
+                          {availableUsers.map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Priority</label>
+                        <select
+                          value={quickTaskPriority}
+                          onChange={(e) => setQuickTaskPriority(e.target.value)}
+                          className="w-full h-8 bg-background-secondary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors cursor-pointer"
+                        >
+                          <option value="low">🟢 Low</option>
+                          <option value="medium">🔵 Medium</option>
+                          <option value="high">🔴 High</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Due Date</label>
+                        <input 
+                          type="date" 
+                          value={quickTaskDueDate}
+                          onChange={(e) => setQuickTaskDueDate(e.target.value)}
+                          className="w-full h-8 bg-background-secondary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Status</label>
+                        <select
+                          value={quickTaskStatus}
+                          onChange={(e) => setQuickTaskStatus(e.target.value)}
+                          className="w-full h-8 bg-background-secondary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors cursor-pointer"
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="review">Review</option>
+                          <option value="done">Completed</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <button
                       type="submit"
-                      className="w-full bg-accent-blue hover:bg-accent-blue-hover text-white py-1 px-2 rounded font-semibold text-2xs transition-colors"
+                      className="w-full bg-accent-blue hover:bg-accent-blue-hover text-white py-2 px-2.5 rounded font-semibold text-xs transition-colors mt-2"
                     >
-                      Add Deliverable
+                      Create Task
                     </button>
                   </form>
                 )}
@@ -484,7 +652,7 @@ export default function ProjectsPage() {
                 {/* Tasks List */}
                 <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                   {(selectedProject.tasks || []).map((task) => {
-                    const isCompleted = task.status === 'completed';
+                    const isCompleted = task.status === 'done';
                     return (
                       <div 
                         key={task.id} 
@@ -525,7 +693,7 @@ export default function ProjectsPage() {
                             <span className="text-[9px] text-text-muted flex items-center gap-1.5 mt-0.5">
                               <span className={cn(
                                 "w-1.5 h-1.5 rounded-full",
-                                task.priority === 'high' || task.priority === 'critical' ? 'bg-accent-red' : task.priority === 'medium' ? 'bg-accent-blue' : 'bg-accent-green'
+                                task.priority === 'high' ? 'bg-accent-red' : task.priority === 'medium' ? 'bg-accent-blue' : 'bg-accent-green'
                               )} />
                               {task.priority} Priority
                             </span>
@@ -615,29 +783,31 @@ export default function ProjectsPage() {
                 </div>
                 <div className="p-4 space-y-3 max-h-[250px] overflow-y-auto">
                   {selectedProject.gitUrl ? (
-                    [
-                      { hash: '7c8a1b2', author: 'Aryan', branch: 'main', msg: 'Merge pull request #14 from frontend-dashboard', time: '10 mins ago' },
-                      { hash: 'f2d8c3e', author: 'Vincent CEO', branch: 'main', msg: 'Update financial milestones layout and budget schemas', time: '2 hours ago' },
-                      { hash: 'e9b3a1d', author: 'Muneesha', branch: 'main', msg: 'Fix eager-load relationship serialization crash on create_project', time: '1 day ago' }
-                    ].map((commit, idx) => (
-                      <div key={idx} className="flex items-start gap-2.5 text-xs font-mono border-b border-border-subtle/30 pb-3 last:border-b-0 last:pb-0">
-                        <span className="text-[9px] bg-background-primary border border-border-subtle rounded px-1.5 py-0.5 text-text-muted font-bold">
-                          {commit.hash}
-                        </span>
-                        <div className="flex-1 space-y-0.5 min-w-0">
-                          <p className="text-text-primary text-[11px] font-sans truncate font-medium">
-                            {commit.msg}
-                          </p>
-                          <div className="flex items-center gap-2 text-[9px] text-text-muted">
-                            <span className="font-bold text-accent-blue">{commit.author}</span>
-                            <span>•</span>
-                            <span className="text-accent-orange font-bold">[{commit.branch}]</span>
-                            <span>•</span>
-                            <span>{commit.time}</span>
+                    loadingCommits ? (
+                      <p className="text-xs text-text-muted">Loading commits from GitHub...</p>
+                    ) : gitCommits.length > 0 ? (
+                      gitCommits.map((commit, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs font-mono border-b border-border-subtle/30 pb-3 last:border-b-0 last:pb-0">
+                          <span className="text-[9px] bg-background-primary border border-border-subtle rounded px-1.5 py-0.5 text-text-muted font-bold">
+                            {commit.hash}
+                          </span>
+                          <div className="flex-1 space-y-0.5 min-w-0">
+                            <p className="text-text-primary text-[11px] font-sans truncate font-medium">
+                              {commit.msg}
+                            </p>
+                            <div className="flex items-center gap-2 text-[9px] text-text-muted">
+                              <span className="font-bold text-accent-blue">{commit.author}</span>
+                              <span>•</span>
+                              <span className="text-accent-orange font-bold">[{commit.branch}]</span>
+                              <span>•</span>
+                              <span>{commit.time}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))
+                    ) : (
+                      <p className="text-xs text-text-muted">No commits found.</p>
+                    )
                   ) : (
                     <div className="text-center py-6 text-xs text-text-muted space-y-2">
                       <p>No repository connected.</p>

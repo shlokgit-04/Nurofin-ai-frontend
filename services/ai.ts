@@ -6,25 +6,34 @@ export interface ChatMessage {
 
 export const aiService = {
   sendChatMessage: async (messages: ChatMessage[]): Promise<ChatMessage> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const lastMessage = messages[messages.length - 1];
-        let reply = "I am Nurofin Executive AI. How can I assist you with your operations today?";
+    const lastMessage = messages[messages.length - 1];
+    try {
+      const response = await fetch('/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: lastMessage.content,
+        }),
+      });
 
-        if (lastMessage.content.toLowerCase().includes('invoice') || lastMessage.content.toLowerCase().includes('acme')) {
-          reply = "I noticed that Acme Corp invoice of $12,450 is 3 days overdue. This is blocking seat keys for your dev team. I recommend approving this payment immediately as we have $382,500 remaining in our operations budget.";
-        } else if (lastMessage.content.toLowerCase().includes('budget') || lastMessage.content.toLowerCase().includes('finance')) {
-          reply = "Our current Q3 operations budget is approved at $150,000. Infrastructure consumes $80,000, licenses at $35,000, support is $20,000, and $15,000 is held in reserve.";
-        } else if (lastMessage.content.toLowerCase().includes('project') || lastMessage.content.toLowerCase().includes('delta')) {
-          reply = "Project Delta is currently at 20% progress. Sarah Connor is PM, and you are CEO sponsor. Sarah merged the latest blueprints yesterday. There is a CORS API policy issue block on logo vectors.";
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        resolve({
-          role: 'assistant',
-          content: reply,
-        });
-      }, 1000);
-    });
+      const data = await response.json();
+      return {
+        role: 'assistant',
+        content: data.response,
+      };
+    } catch (error) {
+      console.error("Failed to fetch from AI backend:", error);
+      return {
+        role: 'assistant',
+        content: "Error: Failed to connect to Nuro-Ai backend. Please make sure the backend server is running on port 8001.",
+      };
+    }
   },
 
   getSuggestedPrompts: async (): Promise<string[]> => {

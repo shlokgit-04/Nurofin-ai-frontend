@@ -32,7 +32,6 @@ import {
   MessageSquare, 
   Edit, 
   Trash, 
-  User, 
   Calendar,
   Loader2,
   AlertCircle
@@ -71,6 +70,7 @@ export default function WorkCenterPage() {
 
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+  const [filterProjectId, setFilterProjectId] = useState<string>('all');
 
   useEffect(() => {
     let active = true;
@@ -160,13 +160,29 @@ export default function WorkCenterPage() {
   // Handle Form Submission
   const onSubmit = async (data: TaskFormValues) => {
     try {
+      const selectedProj = availableProjects.find(p => p.id === data.projectId);
+      const projectName = selectedProj ? selectedProj.name : undefined;
+
+      const selectedUser = availableUsers.find(u => u.id === data.assigneeId);
+      const assignedTo = selectedUser ? {
+        name: selectedUser.name,
+        avatar: selectedUser.avatar
+      } : {
+        name: 'Unassigned',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+      };
+
+      const payload = {
+        ...data,
+        projectName,
+        assignedTo,
+      };
+
       if (editMode && selectedTask) {
-        const updated = await tasksService.updateTask(selectedTask.id, data);
+        const updated = await tasksService.updateTask(selectedTask.id, payload as any);
         updateTask(selectedTask.id, updated);
       } else {
-        const created = await tasksService.createTask({
-          ...data,
-        });
+        const created = await tasksService.createTask(payload as any);
         addTask(created);
       }
       setModalOpen(false);
@@ -219,18 +235,38 @@ export default function WorkCenterPage() {
       </div>
 
       <Tabs defaultValue="kanban">
-        <div className="flex items-center justify-between border-b border-border-subtle pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-2">
           <TabsList>
             <TabsTrigger value="kanban">Kanban Board</TabsTrigger>
             <TabsTrigger value="table">Table List View</TabsTrigger>
           </TabsList>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-text-secondary font-bold uppercase tracking-wider">Project Filter:</span>
+            <select
+              value={filterProjectId}
+              onChange={(e) => setFilterProjectId(e.target.value)}
+              className="bg-background-secondary border border-border-subtle text-xs rounded-md px-3 py-1.5 text-text-primary font-medium outline-none cursor-pointer hover:border-text-muted transition-colors"
+            >
+              <option value="all">All Projects</option>
+              <option value="general">General (No Project)</option>
+              {availableProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* 1. Kanban Board view tab content */}
         <TabsContent value="kanban" className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {(['todo', 'in_progress', 'review', 'done'] as TaskStatus[]).map((col) => {
-              const colTasks = tasks.filter(t => t.status === col);
+              const colTasks = tasks.filter(t => {
+                if (t.status !== col) return false;
+                if (filterProjectId === 'all') return true;
+                if (filterProjectId === 'general') return !t.projectId;
+                return t.projectId === filterProjectId;
+              });
               return (
                 <div key={col} className="bg-background-secondary rounded-lg border border-border-subtle flex flex-col max-h-[80vh]">
                   {/* Column Header */}
@@ -253,11 +289,23 @@ export default function WorkCenterPage() {
                           <h4 className="text-xs font-bold text-text-primary line-clamp-2 leading-relaxed">{task.title}</h4>
                         </div>
                         
-                        {task.projectName && (
-                          <span className="text-[10px] text-text-muted bg-surface-card/40 border border-border-subtle px-2 py-0.5 rounded">
-                            {task.projectName}
-                          </span>
-                        )}
+                        {(() => {
+                          const projName = task.projectName || availableProjects.find(p => p.id === task.projectId)?.name;
+                          if (projName) {
+                            return (
+                              <div className="flex items-center gap-1.5 text-[10px] font-semibold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
+                                {projName}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-text-muted bg-background-secondary border border-border-subtle px-2 py-0.5 rounded w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-text-muted" />
+                              General Tasks
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center justify-between pt-1 border-t border-border-subtle/50 text-[10px]">
                           <span className={cn("px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase", getPriorityColor(task.priority))}>
@@ -319,7 +367,11 @@ export default function WorkCenterPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => (
+                {tasks.filter(t => {
+                  if (filterProjectId === 'all') return true;
+                  if (filterProjectId === 'general') return !t.projectId;
+                  return t.projectId === filterProjectId;
+                }).map((task) => (
                   <TableRow 
                     key={task.id} 
                     onClick={() => handleOpenDetails(task)} 
@@ -327,15 +379,28 @@ export default function WorkCenterPage() {
                   >
                     <TableCell className="font-semibold text-xs">{task.title}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-5 h-5 rounded-full bg-cover bg-center" 
-                          style={{ backgroundImage: `url(${task.assignedTo.avatar})` }}
-                        />
-                        <span className="text-2xs">{task.assignedTo.name}</span>
-                      </div>
+                      {(() => {
+                        const assignee = task.assignedTo || (() => {
+                          const u = availableUsers.find(usr => usr.id === (task as any).assigneeId);
+                          return u ? { name: u.name, avatar: u.avatar } : null;
+                        })();
+                        
+                        if (!assignee) return <span className="text-2xs text-text-muted">Unassigned</span>;
+                        
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-5 h-5 rounded-full bg-cover bg-center" 
+                              style={{ backgroundImage: `url(${assignee.avatar})` }}
+                            />
+                            <span className="text-2xs">{assignee.name}</span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
-                    <TableCell className="text-2xs text-text-secondary">{task.projectName || 'General'}</TableCell>
+                    <TableCell className="text-2xs text-text-secondary">
+                      {task.projectName || availableProjects.find(p => p.id === task.projectId)?.name || 'General'}
+                    </TableCell>
                     <TableCell>
                       <span className={cn("px-2 py-0.5 rounded border text-[9px] font-extrabold uppercase", getPriorityColor(task.priority))}>
                         {task.priority}
@@ -361,13 +426,28 @@ export default function WorkCenterPage() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>{selectedTask.title}</DialogTitle>
-              <DialogDescription className="flex items-center gap-2 mt-1.5">
+              <DialogDescription className="flex flex-wrap items-center gap-2 mt-1.5 font-sans">
                 <span className={cn("px-2 py-0.5 rounded border text-[9px] font-bold uppercase", getPriorityColor(selectedTask.priority))}>
                   {selectedTask.priority} Priority
                 </span>
                 <span className="text-2xs bg-surface-card px-2 py-0.5 rounded border border-border-subtle">
                   {getStatusLabel(selectedTask.status)}
                 </span>
+                {(() => {
+                  const projName = selectedTask.projectName || availableProjects.find(p => p.id === selectedTask.projectId)?.name;
+                  if (projName) {
+                    return (
+                      <span className="text-2xs text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/20">
+                        {projName}
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="text-2xs text-text-muted bg-background-secondary px-2 py-0.5 rounded border border-border-subtle">
+                      General Tasks
+                    </span>
+                  );
+                })()}
               </DialogDescription>
             </DialogHeader>
 
@@ -382,13 +462,24 @@ export default function WorkCenterPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-2xs text-text-secondary font-bold uppercase tracking-wider block mb-1">Owner</span>
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-6 h-6 rounded-full bg-cover bg-center" 
-                      style={{ backgroundImage: `url(${selectedTask.assignedTo.avatar})` }}
-                    />
-                    <span>{selectedTask.assignedTo.name}</span>
-                  </div>
+                  {(() => {
+                    const assignee = selectedTask.assignedTo || (() => {
+                      const u = availableUsers.find(usr => usr.id === (selectedTask as any).assigneeId);
+                      return u ? { name: u.name, avatar: u.avatar } : null;
+                    })();
+                    
+                    if (!assignee) return <span className="text-xs text-text-muted">Unassigned</span>;
+                    
+                    return (
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-6 h-6 rounded-full bg-cover bg-center" 
+                          style={{ backgroundImage: `url(${assignee.avatar})` }}
+                        />
+                        <span>{assignee.name}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <span className="text-2xs text-text-secondary font-bold uppercase tracking-wider block mb-1">Due Date</span>
