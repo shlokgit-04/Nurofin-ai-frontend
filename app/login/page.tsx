@@ -9,6 +9,7 @@ import { Loader2, KeyRound, Mail, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { authService } from '@/services/auth';
 import { cn } from '@/utils/cn';
+import { useStore } from '@/lib/store';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { updateUserProfile } = useStore();
 
   const {
     register,
@@ -30,7 +32,7 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: 'vincent@nurofin.com',
-      password: 'qwerty',
+      password: 'Admin@123',
     },
   });
 
@@ -38,7 +40,13 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      await authService.login(data.email, data.password);
+      const session = await authService.login(data.email, data.password);
+      updateUserProfile({
+        name: session.user.name,
+        email: session.user.email,
+        role: session.user.role,
+        avatar: "" // fallback
+      });
       router.push('/dashboard');
     } catch (err) {
       setErrorMsg('Invalid credentials. Please try again.');

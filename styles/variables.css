@@ -6,16 +6,16 @@
   --surface-card-hover: #222C3E;
   
   --border-subtle: #2A364F;
-  --border-active: #3B82F6;
+  --border-active: var(--theme-color, #3B82F6);
   
   --text-primary: #FFFFFF;
   --text-secondary: #8A99AD;
   --text-muted: #5F6E84;
   
   /* Accents */
-  --accent-blue: #3B82F6;
-  --accent-blue-hover: #2563EB;
-  --accent-blue-light: rgba(59, 130, 246, 0.1);
+  --accent-blue: var(--theme-color, #3B82F6);
+  --accent-blue-hover: var(--theme-color-hover, #2563EB);
+  --accent-blue-light: rgba(var(--theme-color-rgb, 59, 130, 246), 0.1);
   
   --accent-green: #10B981;
   --accent-green-light: rgba(16, 185, 129, 0.1);
@@ -58,13 +58,13 @@ html[data-theme='light'] {
   --surface-card-hover: #F3F4F6;
   
   --border-subtle: #E5E7EB;
-  --border-active: #3B82F6;
+  --border-active: var(--theme-color, #3B82F6);
   
   --text-primary: #111827;
   --text-secondary: #4B5563;
   --text-muted: #9CA3AF;
   
-  --accent-blue-light: rgba(59, 130, 246, 0.05);
+  --accent-blue-light: rgba(var(--theme-color-rgb, 59, 130, 246), 0.05);
   --accent-green-light: rgba(16, 185, 129, 0.05);
   --accent-orange-light: rgba(245, 158, 11, 0.05);
   --accent-red-light: rgba(239, 68, 68, 0.05);

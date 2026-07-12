@@ -65,7 +65,7 @@ export default function Topbar() {
     if (pathname === '/finance') return 'Financial Operations';
     if (pathname === '/chat') return 'Executive AI Assistant';
     if (pathname === '/notifications') return 'Notification Timeline';
-    if (pathname === '/profile') return 'CEO Profile & Metrics';
+    if (pathname === '/profile') return 'Account Settings';
     if (pathname === '/admin') return 'System Administration';
     if (pathname === '/login') return 'Nurofin Gateway';
     return 'Nurofin EOS';

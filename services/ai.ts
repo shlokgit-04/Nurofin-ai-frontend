@@ -37,19 +37,10 @@ export const aiService = {
   },
 
   getSuggestedPrompts: async (): Promise<string[]> => {
-    return Promise.resolve([
-      "Explain Q3 Infrastructure budget limits",
-      "Draft email to Acme PM Connor regarding overdue invoice",
-      "Summary of Project Delta authentication milestones",
-      "Generate compliance guidelines checklist",
-    ]);
+    return Promise.resolve([]);
   },
 
   getAiRecommendations: async (): Promise<string[]> => {
-    return [
-      "Approve overdue Acme Corp invoice to unblock dev team.",
-      "Review Project Delta blueprints for CORS compliance.",
-      "Schedule quarterly sync with marketing department."
-    ];
+    return [];
   },
 };
