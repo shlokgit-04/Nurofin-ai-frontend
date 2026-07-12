@@ -27,7 +27,7 @@ export interface RoleData {
 
 export const usersService = {
   getUsers: async (role?: string, department?: string): Promise<User[]> => {
-    let url = '/api/v1/users/';
+    let url = '/api/v1/users';
     const params = new URLSearchParams();
     if (role) params.append('role', role);
     if (department) params.append('department', department);
@@ -55,7 +55,7 @@ export const usersService = {
   },
 
   createUser: async (userData: any): Promise<any> => {
-    const res = await fetch('/api/v1/users/', {
+    const res = await fetch('/api/v1/users', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(userData)
@@ -95,6 +95,28 @@ export const usersService = {
     const json = await res.json();
     return json.data || [];
   },
+
+  getDeletedUsers: async (): Promise<any[]> => {
+    const res = await fetch('/api/v1/users/deleted', { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch deleted users');
+    const json = await res.json();
+    return (json.data || []).map((u: any) => ({
+      id: u.id,
+      original_user_id: u.original_user_id,
+      name: u.full_name || u.username || 'Unknown',
+      username: u.username,
+      email: u.email,
+      role: u.role || 'Employee',
+      department: u.department,
+      phone: u.phone,
+      github: u.github,
+      linkedin: u.linkedin,
+      avatar: u.profile_picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.full_name || u.username || 'U')}`,
+      joined_at: u.created_at,
+      deleted_at: u.deleted_at,
+    }));
+  },
+
 
   createDepartment: async (name: string): Promise<DepartmentData> => {
     const res = await fetch('/api/v1/users/departments', {

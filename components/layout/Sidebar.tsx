@@ -16,8 +16,6 @@ import {
   Settings, 
   ShieldAlert, 
   UserCircle,
-  Menu,
-  Sparkles,
   LogOut,
   ChevronLeft,
   ChevronRight
@@ -31,19 +29,39 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Projects', href: '/projects', icon: Briefcase },
-  { label: 'Work Center', href: '/tasks', icon: CheckSquare },
-  { label: 'Planner', href: '/planner', icon: Calendar },
-  { label: 'Meetings', href: '/meetings', icon: Users },
-  { label: 'Knowledge Hub', href: '/knowledge', icon: FolderOpen },
-  { label: 'Issue Center', href: '/issues', icon: ShieldAlert },
-  { label: 'Finance', href: '/finance', icon: DollarSign },
-  { label: 'AI Assistant', href: '/chat', icon: BrainCircuit },
-  { label: 'Notifications', href: '/notifications', icon: Bell },
-  { label: 'Account Settings', href: '/profile', icon: UserCircle },
-  { label: 'User Management', href: '/admin', icon: Settings },
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    title: 'Nuro Core',
+    items: [
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Projects', href: '/projects', icon: Briefcase },
+      { label: 'Work Center', href: '/tasks', icon: CheckSquare },
+    ]
+  },
+  {
+    title: 'Operations Hub',
+    items: [
+      { label: 'Planner', href: '/planner', icon: Calendar },
+      { label: 'Meetings', href: '/meetings', icon: Users },
+      { label: 'Knowledge Hub', href: '/knowledge', icon: FolderOpen },
+      { label: 'Issue Center', href: '/issues', icon: ShieldAlert },
+    ]
+  },
+  {
+    title: 'System Control',
+    items: [
+      { label: 'Finance', href: '/finance', icon: DollarSign },
+      { label: 'AI Assistant', href: '/chat', icon: BrainCircuit },
+      { label: 'Notifications', href: '/notifications', icon: Bell },
+      { label: 'Account Settings', href: '/profile', icon: UserCircle },
+      { label: 'User Management', href: '/admin', icon: Settings },
+    ]
+  }
 ];
 
 export default function Sidebar() {
@@ -62,46 +80,20 @@ export default function Sidebar() {
   return (
     <aside 
       className={cn(
-        "h-screen border-r border-border-subtle dark:border-[#1e2030] flex flex-col fixed left-0 top-0 z-40 transition-all duration-300 text-text-secondary dark:text-slate-300 animate-sidebar-gradient",
+        "h-screen border-r border-border-subtle dark:border-[#1e2030] flex flex-col fixed left-0 top-0 z-40 transition-all duration-300 text-text-secondary dark:text-slate-300 bg-background-primary",
         sidebarCollapsed ? "w-16" : "w-64"
       )}
     >
-      <style>{`
-        @keyframes sidebar-gradient-move {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-sidebar-gradient {
-          background: linear-gradient(135deg, 
-            rgba(59, 130, 246, 0.15), 
-            rgba(99, 102, 241, 0.15), 
-            rgba(168, 85, 247, 0.15), 
-            rgba(59, 130, 246, 0.15)
-          );
-          background-size: 300% 300%;
-          animation: sidebar-gradient-move 12s ease infinite;
-        }
-        .dark .animate-sidebar-gradient {
-          background: linear-gradient(135deg, 
-            rgba(59, 130, 246, 0.25), 
-            rgba(99, 102, 241, 0.25), 
-            rgba(168, 85, 247, 0.25), 
-            rgba(59, 130, 246, 0.25)
-          );
-        }
-      `}</style>
-
       {/* Sidebar toggle button sitting on the right border line */}
       <button
         onClick={toggleSidebar}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-secondary dark:bg-[#12131c] border border-border-subtle dark:border-[#1e2030] flex items-center justify-center shadow-md hover:bg-surface-hover dark:hover:bg-slate-800 text-text-secondary dark:text-slate-400 hover:text-text-primary dark:hover:text-white z-50 transition-all duration-200"
+        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-secondary dark:bg-[#12131c] border border-border-subtle dark:border-[#1e2030] flex items-center justify-center shadow-md hover:scale-115 hover:border-accent-blue hover:text-accent-blue text-text-secondary dark:text-slate-400 z-50 transition-all duration-300 hover:shadow-[0_0_10px_rgba(var(--theme-color-rgb),0.4)] cursor-pointer"
         title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
       >
         {sidebarCollapsed ? (
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200" />
         ) : (
-          <ChevronLeft className="w-3.5 h-3.5" />
+          <ChevronLeft className="w-3.5 h-3.5 transition-transform duration-200" />
         )}
       </button>
 
@@ -132,61 +124,95 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-          const Icon = item.icon;
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all group relative",
-                isActive 
-                  ? "bg-accent-blue/10 text-accent-blue font-semibold border-l-2 border-accent-blue dark:bg-accent-blue/15 dark:text-white" 
-                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary dark:text-slate-400 dark:hover:bg-white/[0.04] dark:hover:text-white"
-              )}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+        {navSections.map((section) => (
+          <div key={section.title} className="space-y-1">
+            {!sidebarCollapsed && (
+              <div className="text-[10px] font-bold text-text-muted/80 dark:text-slate-500 uppercase tracking-widest px-3 pt-4 pb-1.5 select-none">
+                {section.title}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+              const Icon = item.icon;
               
-              {!sidebarCollapsed && (
-                <span className="truncate flex-1">{item.label}</span>
-              )}
-
-              {/* Notification Badges inside nav items */}
-              {item.label === 'Notifications' && unreadNotificationsCount > 0 && (
-                <span 
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
                   className={cn(
-                    "flex-shrink-0 rounded-full text-2xs px-1.5 py-0.5 font-bold leading-none",
-                    sidebarCollapsed 
-                      ? "absolute -top-1 -right-1 bg-accent-red text-white"
-                      : "bg-accent-red/20 text-accent-red"
+                    "flex items-center gap-3.5 px-2.5 py-2 rounded-xl text-sm font-semibold transition-all group relative",
+                    sidebarCollapsed ? "justify-center px-0 w-11 h-11 mx-auto" : "w-full",
+                    isActive 
+                      ? "text-white shadow-md shadow-accent-blue/10 dark:shadow-accent-blue/5" 
+                      : "text-text-secondary hover:bg-slate-100/70 dark:hover:bg-white/[0.03] hover:text-text-primary dark:text-slate-400 dark:hover:text-white"
                   )}
+                  style={isActive ? { backgroundColor: 'var(--theme-color)' } : {}}
                 >
-                  {unreadNotificationsCount}
-                </span>
-              )}
+                  <div 
+                    className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors duration-200",
+                      isActive 
+                        ? "bg-white/20" 
+                        : "bg-slate-100/80 dark:bg-[#1c1d29] group-hover:bg-slate-200/80 dark:group-hover:bg-slate-800"
+                    )}
+                  >
+                    <Icon className={cn(
+                      "w-5 h-5",
+                      isActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200"
+                    )} />
+                  </div>
+                  
+                  {!sidebarCollapsed && (
+                    <span className="truncate flex-1 text-[13px] font-bold">{item.label}</span>
+                  )}
 
-              {/* Tooltip for Collapsed Sidebar */}
-              {sidebarCollapsed && (
-                <span className="absolute left-14 scale-0 group-hover:scale-100 transition-all rounded bg-background-secondary dark:bg-[#12131c] border border-border-subtle dark:border-[#1e2030] p-2 text-xs text-text-primary dark:text-white z-50 shadow-md font-sans whitespace-nowrap">
-                  {item.label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+                  {/* Notification Badges inside nav items */}
+                  {item.label === 'Notifications' && unreadNotificationsCount > 0 && (
+                    <span 
+                      className={cn(
+                        "flex-shrink-0 rounded-full text-2xs px-1.5 py-0.5 font-bold leading-none transition-transform duration-200 group-hover:scale-105",
+                        sidebarCollapsed 
+                          ? "absolute -top-1 -right-1 bg-accent-red text-white"
+                          : isActive 
+                            ? "bg-white text-[#3B82F6]" 
+                            : "bg-accent-red/20 text-accent-red"
+                      )}
+                      style={isActive ? { color: 'var(--theme-color)' } : {}}
+                    >
+                      {unreadNotificationsCount}
+                    </span>
+                  )}
+
+                  {/* Tooltip for Collapsed Sidebar */}
+                  {sidebarCollapsed && (
+                    <span className="absolute left-14 scale-0 group-hover:scale-100 transition-all rounded bg-background-secondary dark:bg-[#12131c] border border-border-subtle dark:border-[#1e2030] p-2 text-xs text-text-primary dark:text-white z-50 shadow-md font-sans whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer / User Profile */}
       <div className="p-4 border-t border-border-subtle dark:border-[#1e2030]/60 flex flex-col gap-2">
         <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center" : "justify-between")}>
           <div className="flex items-center gap-3 min-w-0">
-            <div 
-              className="w-8 h-8 rounded-full bg-cover bg-center border border-border-subtle dark:border-[#1e2030]/80 flex-shrink-0"
-              style={{ backgroundImage: `url(${userProfile.avatar})` }}
-            />
+            {userProfile.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img 
+                src={userProfile.avatar} 
+                alt="User Avatar"
+                className="w-8 h-8 rounded-full object-cover border border-border-subtle dark:border-[#1e2030]/80 flex-shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-xs border border-border-subtle dark:border-[#1e2030]/80 flex-shrink-0">
+                {userProfile.name ? userProfile.name.charAt(0).toUpperCase() : 'U'}
+              </div>
+            )}
             {!sidebarCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="text-xs font-semibold text-text-primary dark:text-white truncate">{userProfile.name}</span>

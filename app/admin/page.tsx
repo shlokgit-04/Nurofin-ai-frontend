@@ -33,7 +33,10 @@ import {
   CheckCircle2,
   Activity,
   TrendingUp,
-  Cpu
+  Cpu,
+  Archive,
+  Clock,
+  UserX
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -139,6 +142,7 @@ export default function AdminPanelPage() {
   // State variables
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
+  const [deletedUsers, setDeletedUsers] = useState<any[]>([]);
   
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -194,7 +198,7 @@ export default function AdminPanelPage() {
   // Load initial data
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isCEO]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -205,6 +209,15 @@ export default function AdminPanelPage() {
       
       setUsers(fetchedUsers);
       setDepartments(fetchedDepts);
+      
+      if (isCEO) {
+        try {
+          const fetchedDeleted = await usersService.getDeletedUsers();
+          setDeletedUsers(fetchedDeleted);
+        } catch {
+          setDeletedUsers([]);
+        }
+      }
       
       if (fetchedDepts.length > 0) {
         setActiveDeptId(fetchedDepts[0].id);
@@ -582,6 +595,17 @@ export default function AdminPanelPage() {
                 className="px-5 py-2 text-3xs font-extrabold tracking-wider uppercase rounded-lg text-text-secondary data-[state=active]:bg-white dark:data-[state=active]:bg-[#181928] data-[state=active]:text-blue-500 dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 flex items-center gap-1.5"
               >
                 <Sliders className="w-3.5 h-3.5" /> DEPRTMENTS & ROLES
+              </TabsTrigger>
+              <TabsTrigger 
+                value="previous" 
+                className="px-5 py-2 text-3xs font-extrabold tracking-wider uppercase rounded-lg text-text-secondary data-[state=active]:bg-white dark:data-[state=active]:bg-[#181928] data-[state=active]:text-rose-500 dark:data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 flex items-center gap-1.5"
+              >
+                <Archive className="w-3.5 h-3.5" /> PREVIOUS EMPLOYEES
+                {deletedUsers.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-md text-[8px] font-black">
+                    {deletedUsers.length}
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1117,8 +1141,155 @@ export default function AdminPanelPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* ═══════════════════════════════════════════════════════
+               Previous Employees (Archive) Panel
+          ══════════════════════════════════════════════════════════ */}
+          <TabsContent value="previous" className="space-y-4 animate-in fade-in duration-200">
+
+            {/* Header banner */}
+            <div className="flex items-center justify-between p-4 bg-rose-500/[0.03] border border-rose-500/10 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center justify-center">
+                  <Archive className="w-4 h-4 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-rose-500">Employee Archive</p>
+                  <p className="text-2xs text-text-secondary font-medium">
+                    {deletedUsers.length} former employee{deletedUsers.length !== 1 ? 's' : ''} — records preserved for compliance and audit trails.
+                  </p>
+                </div>
+              </div>
+              <div className="px-3 py-1.5 bg-rose-500/5 border border-rose-500/10 rounded-xl">
+                <span className="text-[10px] font-extrabold text-rose-500">{deletedUsers.length} ARCHIVED</span>
+              </div>
+            </div>
+
+            {/* Archive Table */}
+            <div className="bg-background-secondary border border-slate-200/50 dark:border-white/[0.02] rounded-xl overflow-hidden shadow-sm">
+              <Table>
+                <TableHeader className="bg-rose-500/[0.02]">
+                  <TableRow className="border-slate-200/40 dark:border-white/[0.02] hover:bg-transparent">
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 pl-5 w-[28%]">Former Employee</TableHead>
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 w-[22%]">Contact</TableHead>
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 w-[18%]">Department</TableHead>
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 w-[14%]">Role</TableHead>
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 w-[10%]">Joined</TableHead>
+                    <TableHead className="text-[10px] font-extrabold uppercase tracking-wider text-text-secondary py-3 w-[13%] pr-5 text-right">Removed On</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deletedUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-16">
+                        <div className="flex flex-col items-center gap-3 text-text-secondary">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200/50 dark:border-white/[0.02] flex items-center justify-center">
+                            <UserX className="w-5 h-5 text-text-muted" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-2xs font-bold">No archived employees</p>
+                            <p className="text-[10px] text-text-muted">Deleted employees will appear here.</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    deletedUsers.map((u) => {
+                      const deptColors = getDeptColorClasses(u.department || '');
+                      const joinedDate = u.joined_at
+                        ? new Date(u.joined_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '—';
+                      const deletedDate = u.deleted_at
+                        ? new Date(u.deleted_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '—';
+                      return (
+                        <TableRow
+                          key={u.id}
+                          className="hover:bg-rose-500/[0.015] border-slate-200/30 dark:border-white/[0.015] transition-colors duration-150 opacity-75 hover:opacity-100"
+                        >
+                          {/* Col 1: Avatar + Name */}
+                          <TableCell className="py-3 pl-5">
+                            <div className="flex items-center gap-3">
+                              <div className="relative flex-shrink-0">
+                                <UserAvatar src={u.avatar} name={u.name} />
+                                <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-rose-500/80 border-2 border-background-secondary rounded-full flex items-center justify-center">
+                                  <Archive className="w-1.5 h-1.5 text-white" />
+                                </span>
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-2xs font-bold text-text-primary truncate">{u.name}</span>
+                                <span className="text-[10px] text-text-muted font-bold truncate">@{u.username || 'unknown'}</span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {/* Col 2: Contact */}
+                          <TableCell className="py-3">
+                            <div className="flex flex-col gap-0.5 text-2xs font-semibold text-text-secondary">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <Mail className="w-3 h-3 text-text-muted flex-shrink-0" />
+                                <span className="truncate">{u.email}</span>
+                              </div>
+                              {u.phone && (
+                                <div className="flex items-center gap-1.5">
+                                  <Phone className="w-3 h-3 text-text-muted flex-shrink-0" />
+                                  <span>{u.phone}</span>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Col 3: Department */}
+                          <TableCell className="py-3">
+                            {u.department ? (
+                              <div className={cn(
+                                "px-2.5 py-1 border rounded-lg text-[9px] uppercase tracking-wider font-black inline-flex items-center gap-1 shadow-sm",
+                                deptColors.border,
+                                deptColors.bg,
+                                deptColors.text
+                              )}>
+                                <span className={cn("w-1 h-1 rounded-full", deptColors.dot)} />
+                                {u.department}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-text-muted">—</span>
+                            )}
+                          </TableCell>
+
+                          {/* Col 4: Role */}
+                          <TableCell className="py-3">
+                            <span className="text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 shadow-sm text-slate-500 bg-slate-500/[0.04] border-slate-400/20">
+                              {u.role || 'Member'}
+                            </span>
+                          </TableCell>
+
+                          {/* Col 5: Joined date */}
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-1 text-[10px] text-text-muted font-semibold">
+                              <Clock className="w-3 h-3 flex-shrink-0" />
+                              {joinedDate}
+                            </div>
+                          </TableCell>
+
+                          {/* Col 6: Removed on */}
+                          <TableCell className="py-3 pr-5 text-right">
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="text-[9px] uppercase tracking-wider font-extrabold text-rose-500/70">Removed</span>
+                              <span className="text-[10px] text-rose-500 font-bold">{deletedDate}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
         </Tabs>
       )}
+
 
       {/* Modal 1: Add User Form */}
       <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>

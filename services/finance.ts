@@ -10,18 +10,14 @@ export interface FinancialMetrics {
 export const financeService = {
   getMetrics: async (): Promise<FinancialMetrics> => {
     return {
-      outstandingInvoices: 12450,
-      cloudCosts: 3200,
-      salaries: 145000,
-      budgetRemaining: 382500,
+      outstandingInvoices: 0,
+      cloudCosts: 0,
+      salaries: 0,
+      budgetRemaining: 0,
     };
   },
   getSpendingTrends: async (): Promise<{ month: string; spending: number; budget: number }[]> => {
-    return [
-      { month: 'Jan', spending: 40000, budget: 50000 },
-      { month: 'Feb', spending: 45000, budget: 50000 },
-      { month: 'Mar', spending: 42000, budget: 50000 },
-    ];
+    return [];
   },
   getFinanceRecords: async (): Promise<FinanceRecord[]> => {
     return [];

@@ -31,9 +31,7 @@ export const meetingsService = {
   },
   
   getMeetingSummary: async (title: string): Promise<string> => {
-    // Mock the MoM generation
-    await new Promise(r => setTimeout(r, 1500));
-    return `AI Summary generated for: ${title}\n\n- Discussed key strategic deliverables.\n- Aligned on Q4 milestones and resource allocation.\n- Next Steps: Review finalizing budget next week.`;
+    return "";
   },
   
   createMeeting: async (meeting: Partial<Meeting>): Promise<Meeting> => {
@@ -44,7 +42,7 @@ export const meetingsService = {
       start_time: meeting.time,
       type: meeting.type || 'meeting'
     };
-    const res = await fetch('/api/v1/meetings/', {
+    const res = await fetch('/api/v1/meetings', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload)

@@ -31,12 +31,7 @@ interface DocItem {
   contentSnippet: string;
 }
 
-const mockDocs: DocItem[] = [
-  { id: 'doc-1', title: 'Q2 Compliance Audits Certification.pdf', category: 'Finance', type: 'pdf', size: '2.4 MB', updatedAt: '2026-07-01', description: 'Certified operations ledger sheets from Q2.', contentSnippet: 'This document certifies that Nurofin transaction speeds and ledgers conform to standard auditing procedures. Signed Vincent N.' },
-  { id: 'doc-2', title: 'GetStream API Tokens Protocol.docx', category: 'AI', type: 'docx', size: '1.1 MB', updatedAt: '2026-07-04', description: 'Instructions on establishing CORS secure headers.', contentSnippet: 'Establishing chat tokens requires signing user payloads with the developer application private key. Ensure CORS rules allow localhost and static origins.' },
-  { id: 'doc-3', title: 'AWS Cluster Cost Sheet Q3.xlsx', category: 'Finance', type: 'xlsx', size: '5.8 MB', updatedAt: '2026-06-28', description: 'Cost projections for database sharding operations.', contentSnippet: 'Database instances consume $80,000 monthly. License costs stand at $35,000, while support requires $20,000. Held reserve is $15,000.' },
-  { id: 'doc-4', title: 'Obsidian Theme Layout Design.png', category: 'Engineering', type: 'png', size: '820 KB', updatedAt: '2026-07-05', description: 'Design tokens mockup illustration.', contentSnippet: 'Hex codes: Primary background #0B1220, secondary surface #121A2A, card container #1A2332. All fonts are Outfit/Inter.' },
-];
+const mockDocs: DocItem[] = [];
 
 export default function KnowledgeHubPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');

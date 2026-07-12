@@ -32,7 +32,7 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: 'vincent@nurofin.com',
-      password: 'qwerty',
+      password: 'Admin@123',
     },
   });
 

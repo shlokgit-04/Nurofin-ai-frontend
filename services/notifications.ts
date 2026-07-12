@@ -13,7 +13,7 @@ const getHeaders = () => {
 
 export const notificationsService = {
   getNotifications: async (): Promise<NotificationItem[]> => {
-    const res = await fetch('/api/v1/notifications/', { headers: getHeaders() });
+    const res = await fetch('/api/v1/notifications', { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch notifications');
     const json = await res.json();
     return json.data || [];
