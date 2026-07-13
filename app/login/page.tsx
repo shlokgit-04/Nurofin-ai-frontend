@@ -31,8 +31,8 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'vincent@nurofin.com',
-      password: 'Admin@123',
+      email: '',
+      password: '',
     },
   });
 
