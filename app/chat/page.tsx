@@ -1,28 +1,32 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
-import { aiService, ChatMessage } from '@/services/ai';
-import { 
-  BrainCircuit, 
-  Send, 
-  Plus, 
-  Mic, 
-  MicOff, 
-  Sparkles, 
-  Paperclip, 
-  FileText, 
-  Image as ImageIcon, 
-  FileSpreadsheet, 
-  Music, 
-  AlertCircle,
-  Loader2 
+import { aiService, ChatMessage, AI_PROVIDERS } from '@/services/ai';
+import {
+  BrainCircuit,
+  Send,
+  Plus,
+  Mic,
+  MicOff,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  Music,
+  Loader2,
+  Copy,
+  Check,
+  RotateCcw,
+  Settings,
+  X,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function AiAssistantPage() {
-  const { aiStatus, setAiStatus } = useStore();
+  const { aiStatus, setAiStatus, selectedProvider, selectedModel, setSelectedProvider, setSelectedModel } = useStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Hello Vincent, I am your Executive Operating System assistant. Ask me questions about Q3 budgets, Acme developer invoices, compliance certification checklists, or Project Delta milestones.' }
   ]);
@@ -30,9 +34,12 @@ export default function AiAssistantPage() {
   const [micActive, setMicActive] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; type: string; size: string }[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Suggested prompts
   const suggestedPrompts = [
     "Explain Q3 Infrastructure budget limits",
     "Summary of Project Delta authentication milestones",
@@ -40,14 +47,13 @@ export default function AiAssistantPage() {
     "Check Q2 compliance certification checklist",
   ];
 
-  // Auto-scroll messages to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, aiStatus]);
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = useCallback(async (textToSend?: string) => {
     const text = textToSend || inputVal;
     if (!text.trim() && attachedFiles.length === 0) return;
 
@@ -63,24 +69,100 @@ export default function AiAssistantPage() {
     setPlusMenuOpen(false);
     setAiStatus('thinking');
 
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
+    setMessages(prev => [...prev, assistantMsg]);
+
     try {
-      const response = await aiService.sendChatMessage([...messages, userMsg]);
-      setMessages(prev => [...prev, response]);
+      const stream = aiService.sendChatMessageStream(text, {
+        provider: selectedProvider,
+        model: selectedModel,
+      });
+
+      let fullContent = '';
+      for await (const chunk of stream) {
+        fullContent += chunk;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: fullContent };
+          return updated;
+        });
+      }
+
+      if (!fullContent) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: "I'm sorry, I couldn't process your request." };
+          return updated;
+        });
+      }
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Error retrieving AI suggestions. Please try again.' }]);
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content: 'Error retrieving AI suggestions. Please try again.' };
+        return updated;
+      });
+    } finally {
+      setAiStatus('idle');
+      abortRef.current = null;
+    }
+  }, [inputVal, attachedFiles, selectedProvider, selectedModel, setAiStatus]);
+
+  const handleRegenerate = useCallback(async (lastUserIdx: number) => {
+    const lastUserMsg = messages[lastUserIdx];
+    if (!lastUserMsg) return;
+
+    setMessages(prev => prev.slice(0, lastUserIdx + 1));
+    setAiStatus('thinking');
+
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
+    setMessages(prev => [...prev, assistantMsg]);
+
+    try {
+      const stream = aiService.sendChatMessageStream(lastUserMsg.content, {
+        provider: selectedProvider,
+        model: selectedModel,
+      });
+
+      let fullContent = '';
+      for await (const chunk of stream) {
+        fullContent += chunk;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: fullContent };
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: 'assistant', content: 'Error retrieving AI suggestions. Please try again.' };
+        return updated;
+      });
     } finally {
       setAiStatus('idle');
     }
+  }, [messages, selectedProvider, selectedModel, setAiStatus]);
+
+  const handleCopyMessage = (content: string, idx: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
   };
 
   const handleAttachFile = (fileType: string, extension: string) => {
+<<<<<<< HEAD
+    const mockFile = { name: `Document_Report.${extension}`, type: fileType, size: '1.2 MB' };
+    setAttachedFiles(prev => [...prev, mockFile]);
+=======
     const simulatedFile = {
       name: `Document_Report.${extension}`,
       type: fileType,
       size: '1.2 MB',
     };
     setAttachedFiles(prev => [...prev, simulatedFile]);
+>>>>>>> main
     setPlusMenuOpen(false);
   };
 
@@ -97,10 +179,20 @@ export default function AiAssistantPage() {
     }
   };
 
+  const currentProvider = AI_PROVIDERS.find(p => p.id === selectedProvider);
+  const currentModel = currentProvider?.models.find(m => m.id === selectedModel);
+
+  const findLastUserIdx = (msgIdx: number): number => {
+    for (let i = msgIdx - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') return i;
+    }
+    return -1;
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)] max-w-5xl mx-auto border border-border-subtle bg-background-secondary rounded-lg shadow-xl overflow-hidden font-sans text-text-primary">
-      
-      {/* AI Assistant Chat Room Header */}
+
+      {/* Header */}
       <div className="p-4 border-b border-border-subtle flex items-center justify-between bg-surface-card/20">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-accent-blue/10 rounded-lg text-accent-blue">
@@ -109,62 +201,141 @@ export default function AiAssistantPage() {
           <div>
             <h3 className="text-xs font-bold">Executive Operating Copilot</h3>
             <span className="text-[10px] text-text-secondary flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-green" /> 256-bit encryption active
+              <span className="w-1.5 h-1.5 rounded-full bg-accent-green" />
+              {currentModel?.name || 'AI Ready'} &middot; 256-bit encryption
             </span>
           </div>
         </div>
 
-        {aiStatus !== 'idle' && (
-          <div className="flex items-center gap-1.5 text-2xs text-accent-blue bg-accent-blue/10 px-3 py-1 rounded-full border border-accent-blue/20 font-medium">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            AI is writing...
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {aiStatus !== 'idle' && (
+            <div className="flex items-center gap-1.5 text-2xs text-accent-blue bg-accent-blue/10 px-3 py-1 rounded-full border border-accent-blue/20 font-medium">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Thinking...
+            </div>
+          )}
+          <button
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            className="p-2 rounded-md border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-surface-card transition-colors"
+            aria-label="Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Message Feed Stream */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-background-primary/10">
-        {messages.map((msg, i) => (
-          <div 
-            key={i}
-            className={cn(
-              "flex gap-3 max-w-[80%] rounded-lg p-3.5 text-xs leading-relaxed text-left",
-              msg.role === 'user' 
-                ? "bg-accent-blue/15 border border-accent-blue/20 ml-auto flex-row-reverse" 
-                : "bg-surface-card border border-border-subtle mr-auto"
-            )}
-          >
-            <div className="p-1.5 rounded-md bg-background-primary border border-border-subtle h-fit flex-shrink-0">
-              {msg.role === 'user' ? <Paperclip className="w-4 h-4 text-text-secondary" /> : <BrainCircuit className="w-4 h-4 text-accent-blue" />}
-            </div>
-            
-            <div className="space-y-2">
-              <p className="text-text-primary whitespace-pre-wrap">{msg.content}</p>
+      {/* Settings Drawer */}
+      {settingsOpen && (
+        <div className="border-b border-border-subtle bg-surface-card/30 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-text-secondary">Provider & Model</span>
+            <button onClick={() => setSettingsOpen(false)} className="text-text-muted hover:text-text-primary">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-              {/* Render Attached Files inside messages */}
-              {msg.files && (
-                <div className="flex flex-col gap-2 pt-2 border-t border-border-subtle/50">
-                  {msg.files.map((f, fi) => (
-                    <div key={fi} className="flex items-center gap-2 bg-background-primary px-2.5 py-1.5 rounded border border-border-subtle/50 text-[10px]">
-                      {getFileIcon(f.type)}
-                      <span className="font-semibold text-text-primary truncate max-w-[200px]">{f.name}</span>
-                      <span className="text-text-muted">({f.size})</span>
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Provider</label>
+              <div className="relative">
+                <select
+                  value={selectedProvider}
+                  onChange={(e) => {
+                    setSelectedProvider(e.target.value);
+                    const provider = AI_PROVIDERS.find(p => p.id === e.target.value);
+                    if (provider?.models[0]) setSelectedModel(provider.models[0].id);
+                  }}
+                  className="w-full h-9 bg-background-primary border border-border-subtle rounded-md px-3 text-xs text-text-primary appearance-none cursor-pointer focus:border-accent-blue transition-colors outline-none pr-8"
+                >
+                  {AI_PROVIDERS.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </div>
-              )}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Model</label>
+              <div className="relative">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full h-9 bg-background-primary border border-border-subtle rounded-md px-3 text-xs text-text-primary appearance-none cursor-pointer focus:border-accent-blue transition-colors outline-none pr-8"
+                >
+                  {currentProvider?.models.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              </div>
             </div>
           </div>
-        ))}
-        {aiStatus !== 'idle' && (
-          <div className="flex gap-3 bg-surface-card border border-border-subtle mr-auto max-w-[80%] rounded-lg p-4 text-xs italic text-text-secondary">
-            <Loader2 className="w-4 h-4 animate-spin text-accent-blue" /> Thinking...
-          </div>
-        )}
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-background-primary/10">
+        {messages.map((msg, i) => {
+          const isUser = msg.role === 'user';
+          const lastUserIdx = !isUser ? findLastUserIdx(i) : -1;
+
+          return (
+            <div key={i} className={cn("flex gap-3 max-w-[85%] rounded-lg p-3.5 text-xs leading-relaxed text-left", isUser ? "bg-accent-blue/15 border border-accent-blue/20 ml-auto flex-row-reverse" : "bg-surface-card border border-border-subtle mr-auto")}>
+              <div className="p-1.5 rounded-md bg-background-primary border border-border-subtle h-fit flex-shrink-0">
+                {isUser ? <Paperclip className="w-4 h-4 text-text-secondary" /> : <BrainCircuit className="w-4 h-4 text-accent-blue" />}
+              </div>
+
+              <div className="space-y-2 flex-1 min-w-0">
+                {msg.content ? (
+                  <p className="text-text-primary whitespace-pre-wrap break-words">{msg.content}</p>
+                ) : (
+                  <div className="flex items-center gap-2 text-text-muted italic">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-blue" /> Generating...
+                  </div>
+                )}
+
+                {msg.files && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-border-subtle/50">
+                    {msg.files.map((f, fi) => (
+                      <div key={fi} className="flex items-center gap-2 bg-background-primary px-2.5 py-1.5 rounded border border-border-subtle/50 text-[10px]">
+                        {getFileIcon(f.type)}
+                        <span className="font-semibold text-text-primary truncate max-w-[200px]">{f.name}</span>
+                        <span className="text-text-muted">({f.size})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action buttons for assistant messages */}
+                {!isUser && msg.content && aiStatus === 'idle' && (
+                  <div className="flex items-center gap-1 pt-1">
+                    <button
+                      onClick={() => handleCopyMessage(msg.content, i)}
+                      className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                      title="Copy"
+                    >
+                      {copiedIdx === i ? <Check className="w-3.5 h-3.5 text-accent-green" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    {lastUserIdx >= 0 && i === messages.length - 1 && (
+                      <button
+                        onClick={() => handleRegenerate(lastUserIdx)}
+                        className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                        title="Regenerate"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
         <div ref={scrollRef} />
       </div>
 
-      {/* Suggested Prompts Grid */}
+      {/* Suggested Prompts */}
       {messages.length === 1 && (
         <div className="px-4 py-3 border-t border-border-subtle/50 space-y-2 bg-surface-card/10">
           <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider block">Suggested Questions</span>
@@ -173,8 +344,9 @@ export default function AiAssistantPage() {
               <button
                 key={pi}
                 onClick={() => handleSend(prompt)}
-                className="p-2.5 bg-background-primary border border-border-subtle rounded text-xs text-text-secondary hover:text-text-primary hover:border-accent-blue/30 text-left truncate transition-colors"
+                className="flex items-center gap-2 p-2.5 bg-background-primary border border-border-subtle rounded text-xs text-text-secondary hover:text-text-primary hover:border-accent-blue/30 text-left truncate transition-colors"
               >
+                <Sparkles className="w-3 h-3 text-accent-blue flex-shrink-0" />
                 {prompt}
               </button>
             ))}
@@ -182,112 +354,86 @@ export default function AiAssistantPage() {
         </div>
       )}
 
-      {/* Message Input Panel with attachments & voice simulation */}
+      {/* Input Area */}
       <div className="p-4 border-t border-border-subtle bg-surface-card/30 space-y-3">
-        {/* Attached files pills preview */}
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, fi) => (
               <div key={fi} className="flex items-center gap-2 bg-background-primary px-2.5 py-1 rounded border border-border-subtle text-[10px]">
                 {getFileIcon(file.type)}
                 <span className="font-semibold truncate max-w-[150px]">{file.name}</span>
-                <button 
-                  onClick={() => removeAttachedFile(fi)}
-                  className="text-accent-red hover:text-red-400 font-bold ml-1"
-                >
-                  ×
-                </button>
+                <button onClick={() => removeAttachedFile(fi)} className="text-accent-red hover:text-red-400 font-bold ml-1">×</button>
               </div>
             ))}
           </div>
         )}
 
         <div className="flex items-center gap-3 relative">
-          {/* Plus Add Upload Menu button */}
           <div className="relative">
             <button
               onClick={() => setPlusMenuOpen(!plusMenuOpen)}
               className="p-2.5 bg-background-primary border border-border-subtle text-text-secondary hover:text-text-primary rounded-md transition-colors"
               type="button"
-              aria-label="Upload document attachments"
             >
               <Plus className={cn("w-4 h-4 transition-transform", plusMenuOpen ? "rotate-45" : "")} />
             </button>
 
             {plusMenuOpen && (
               <div className="absolute bottom-12 left-0 w-44 bg-background-secondary border border-border-subtle rounded-md shadow-2xl z-50 overflow-hidden divide-y divide-border-subtle/50 text-2xs font-sans">
-                <button 
-                  onClick={() => handleAttachFile('pdf', 'pdf')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
-                >
-                  <FileText className="w-3.5 h-3.5 text-accent-red" /> PDF Document
-                </button>
-                <button 
-                  onClick={() => handleAttachFile('docx', 'docx')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
-                >
-                  <FileText className="w-3.5 h-3.5 text-accent-blue" /> DOCX Word File
-                </button>
-                <button 
-                  onClick={() => handleAttachFile('excel', 'xlsx')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-accent-green" /> Excel Spreadsheet
-                </button>
-                <button 
-                  onClick={() => handleAttachFile('image', 'png')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 text-accent-blue" /> PNG/JPEG Image
-                </button>
-                <button 
-                  onClick={() => handleAttachFile('audio', 'mp3')}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
-                >
-                  <Music className="w-3.5 h-3.5 text-accent-orange" /> Audio Recording
-                </button>
+                {[
+                  { type: 'pdf', ext: 'pdf', label: 'PDF Document', icon: FileText, color: 'text-accent-red' },
+                  { type: 'docx', ext: 'docx', label: 'DOCX Word File', icon: FileText, color: 'text-accent-blue' },
+                  { type: 'excel', ext: 'xlsx', label: 'Excel Spreadsheet', icon: FileSpreadsheet, color: 'text-accent-green' },
+                  { type: 'image', ext: 'png', label: 'PNG/JPEG Image', icon: ImageIcon, color: 'text-accent-blue' },
+                  { type: 'audio', ext: 'mp3', label: 'Audio Recording', icon: Music, color: 'text-accent-orange' },
+                ].map(({ type, ext, label, icon: Icon, color }) => (
+                  <button
+                    key={type}
+                    onClick={() => handleAttachFile(type, ext)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-left"
+                  >
+                    <Icon className={cn("w-3.5 h-3.5", color)} /> {label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Text Input area */}
           <input
+            ref={inputRef}
             type="text"
             placeholder={micActive ? "Listening to voice input..." : "Ask AI about finances, ledgers, strategy review documents..."}
             className="flex-1 h-10 bg-background-primary border border-border-subtle rounded-md px-4 text-xs text-text-primary placeholder-text-muted focus:border-accent-blue transition-colors outline-none font-sans"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             disabled={micActive}
           />
 
-          {/* Voice Mic Toggle */}
           <button
             onClick={() => setMicActive(!micActive)}
             className={cn(
               "p-2.5 rounded-md border transition-all",
-              micActive 
-                ? "bg-accent-red/20 border-accent-red text-accent-red animate-pulse" 
-                : "bg-background-primary border-border-subtle text-text-secondary hover:text-text-primary"
+              micActive ? "bg-accent-red/20 border-accent-red text-accent-red animate-pulse" : "bg-background-primary border-border-subtle text-text-secondary hover:text-text-primary"
             )}
             type="button"
-            aria-label="Toggle voice input"
           >
             {micActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
 
-          {/* Send query button */}
           <button
             onClick={() => handleSend()}
-            className="p-2.5 bg-accent-blue hover:bg-accent-blue-hover text-white rounded-md transition-colors"
+            disabled={aiStatus !== 'idle'}
+            className={cn(
+              "p-2.5 rounded-md transition-colors",
+              aiStatus !== 'idle' ? "bg-accent-blue/50 text-white/50 cursor-not-allowed" : "bg-accent-blue hover:bg-accent-blue-hover text-white"
+            )}
             type="button"
-            aria-label="Send message query"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
-
     </div>
   );
 }

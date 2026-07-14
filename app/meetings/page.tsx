@@ -3,20 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
-import { Meeting } from '@/types';
+import { Meeting, MeetingTimelineEvent, MeetingExtractedTask } from '@/types';
 import { meetingsService } from '@/services/meetings';
-import { 
-  Users, 
-  Clock, 
-  Calendar, 
-  Video, 
-  MapPin, 
-  Sparkles, 
-  FileText, 
-  Plus, 
-  Loader2,
-  Save,
-  AlertCircle
+import {
+  Users, Clock, Calendar, Video, MapPin, Sparkles, FileText, Plus, Loader2,
+  Save, AlertCircle, Check, X, Upload, UserPlus, Trash2, Link2, Globe,
+  AlertTriangle, ListChecks, MessageSquare, Shield, Target, ChevronRight,
+  CheckCircle2, XCircle, History, ClipboardList
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,24 +22,42 @@ const meetingSchema = z.object({
   title: z.string().min(3, 'Title is required'),
   date: z.string().min(1, 'Date is required'),
   time: z.string().min(1, 'Time is required'),
-  type: z.enum(['video', 'in-person']),
+  type: z.enum(['meeting', 'reminder', 'event']),
 });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
+
+type Tab = 'info' | 'participants' | 'timeline' | 'mom' | 'tasks';
 
 export default function MeetingsPage() {
   const { meetings, setMeetings, addMeeting, updateMeeting } = useStore();
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingMoM, setLoadingMoM] = useState(false);
-  const [generatedMoM, setGeneratedMoM] = useState<string | null>(null);
-  const [momOpen, setMomOpen] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('info');
   const [filter, setFilter] = useState<'today' | 'weekly' | 'monthly' | 'all'>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  // MOM states
+  const [loadingMoM, setLoadingMoM] = useState(false);
+  const [momText, setMomText] = useState('');
+  const [analyzingMom, setAnalyzingMom] = useState(false);
+
+  // Timeline state
+  const [timeline, setTimeline] = useState<MeetingTimelineEvent[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+
+  // Extracted tasks state
+  const [extractedTasks, setExtractedTasks] = useState<MeetingExtractedTask[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+
+  // Create modal
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
-    defaultValues: { date: new Date().toISOString().split('T')[0], time: '10:00', type: 'video' }
+    defaultValues: { date: new Date().toISOString().split('T')[0], time: '10:00', type: 'meeting' }
   });
 
   useEffect(() => {
@@ -55,84 +66,191 @@ export default function MeetingsPage() {
       try {
         setLoading(true);
         setError(null);
-        const data = filter === 'all' 
-          ? await meetingsService.getMeetings()
-          : await meetingsService.getMeetings(filter as any);
+        const data = filter === 'all'
+          ? await meetingsService.getMeetings(undefined, search || undefined)
+          : await meetingsService.getMeetings(filter as any, search || undefined);
         if (active) {
           setMeetings(data);
-          if (data.length > 0) {
+          if (data.length > 0 && !selectedId) {
             setSelectedId(data[0].id);
-          } else {
-            setSelectedId('');
           }
         }
       } catch (err: any) {
-        if (active) {
-          setError(err.message || 'Failed to load meetings');
-        }
+        if (active) setError(err.message || 'Failed to load meetings');
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
     loadMeetings();
-    return () => {
-      active = false;
-    };
-  }, [setMeetings, filter]);
+    return () => { active = false; };
+  }, [setMeetings, filter, search]);
+
+  const selectedMeeting = meetings.find(m => m.id === selectedId);
+
+  // Load timeline when tab changes
+  useEffect(() => {
+    if (activeTab !== 'timeline' || !selectedId) return;
+    let active = true;
+    async function load() {
+      setLoadingTimeline(true);
+      try {
+        const data = await meetingsService.getTimeline(selectedId);
+        if (active) setTimeline(data);
+      } catch { if (active) setTimeline([]); }
+      finally { if (active) setLoadingTimeline(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
+
+  // Load extracted tasks when tab changes
+  useEffect(() => {
+    if (activeTab !== 'tasks' || !selectedId) return;
+    let active = true;
+    async function load() {
+      setLoadingTasks(true);
+      try {
+        const data = await meetingsService.getExtractedTasks(selectedId);
+        if (active) { setExtractedTasks(data); setSelectedTaskIds([]); }
+      } catch { if (active) setExtractedTasks([]); }
+      finally { if (active) setLoadingTasks(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
 
   const onSubmit = async (data: MeetingFormValues) => {
     try {
-      const created = await meetingsService.createMeeting({
-        title: data.title,
-        date: data.date,
-        time: data.time,
-        type: data.type
-      });
+      const created = await meetingsService.createMeeting({ title: data.title, date: data.date, time: data.time, type: data.type });
       addMeeting(created);
       setSelectedId(created.id);
       setCreateModalOpen(false);
       reset();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  const selectedMeeting = meetings.find(m => m.id === selectedId) || meetings[0];
-
-  const handleNotesChange = (text: string) => {
-    if (!selectedMeeting) return;
-    updateMeeting(selectedMeeting.id, { notes: text });
-  };
-
-  const handleGenerateMoM = async () => {
-    if (!selectedMeeting) return;
-    setLoadingMoM(true);
+  const handleUploadMoM = async () => {
+    if (!selectedMeeting || !momText.trim()) return;
+    setActionLoading('mom');
     try {
-      const summary = await meetingsService.getMeetingSummary(selectedMeeting.title);
-      setGeneratedMoM(summary);
-      setMomOpen(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingMoM(false);
-    }
+      const updated = await meetingsService.uploadMOM(selectedMeeting.id, momText);
+      updateMeeting(selectedMeeting.id, { momText: updated.mom_summary || momText, mom_summary: updated.mom_summary });
+      setMomText('');
+      // Reload meeting to get analysis
+      const full = await meetingsService.getMeeting(selectedMeeting.id);
+      updateMeeting(selectedMeeting.id, {
+        mom_executive_summary: full.mom_executive_summary,
+        mom_decisions: full.mom_decisions,
+        mom_risks: full.mom_risks,
+        mom_blockers: full.mom_blockers,
+        mom_followups: full.mom_followups,
+      });
+    } catch (err) { console.error('Failed to upload MOM:', err); }
+    finally { setActionLoading(null); }
   };
 
-  const handleSaveMoM = () => {
-    if (!selectedMeeting || !generatedMoM) return;
-    updateMeeting(selectedMeeting.id, { momText: generatedMoM });
-    setMomOpen(false);
-    setGeneratedMoM(null);
+  const handleAnalyzeMom = async () => {
+    if (!selectedMeeting) return;
+    setAnalyzingMom(true);
+    try {
+      const updated = await meetingsService.analyzeMOM(selectedMeeting.id);
+      updateMeeting(selectedMeeting.id, {
+        mom_executive_summary: updated.mom_executive_summary,
+        mom_decisions: updated.mom_decisions,
+        mom_risks: updated.mom_risks,
+        mom_blockers: updated.mom_blockers,
+        mom_followups: updated.mom_followups,
+      });
+    } catch (err) { console.error('Failed to analyze MOM:', err); }
+    finally { setAnalyzingMom(false); }
+  };
+
+  const handleAccept = async () => {
+    if (!selectedMeeting) return;
+    setActionLoading('accept');
+    try {
+      await meetingsService.acceptMeeting(selectedMeeting.id);
+      const updatedParticipants = (selectedMeeting.participants || []).map(p =>
+        p.status === 'pending' ? { ...p, status: 'accepted' as const } : p
+      );
+      updateMeeting(selectedMeeting.id, { participants: updatedParticipants });
+    } catch (err) { console.error(err); }
+    finally { setActionLoading(null); }
+  };
+
+  const handleDecline = async () => {
+    if (!selectedMeeting) return;
+    setActionLoading('decline');
+    try {
+      await meetingsService.declineMeeting(selectedMeeting.id);
+      const updatedParticipants = (selectedMeeting.participants || []).map(p =>
+        p.status === 'pending' ? { ...p, status: 'declined' as const } : p
+      );
+      updateMeeting(selectedMeeting.id, { participants: updatedParticipants });
+    } catch (err) { console.error(err); }
+    finally { setActionLoading(null); }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedMeeting) return;
+    if (!confirm('Are you sure you want to delete this meeting?')) return;
+    try {
+      await meetingsService.deleteMeeting(selectedMeeting.id);
+      setMeetings(meetings.filter(m => m.id !== selectedMeeting.id));
+      setSelectedId('');
+    } catch (err) { console.error(err); }
+  };
+
+  const handleApproveTasks = async () => {
+    if (!selectedMeeting || selectedTaskIds.length === 0) return;
+    try {
+      await meetingsService.approveExtractedTasks(selectedMeeting.id, selectedTaskIds);
+      const data = await meetingsService.getExtractedTasks(selectedMeeting.id);
+      setExtractedTasks(data);
+      setSelectedTaskIds([]);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleRejectTasks = async () => {
+    if (!selectedMeeting || selectedTaskIds.length === 0) return;
+    try {
+      await meetingsService.rejectExtractedTasks(selectedMeeting.id, selectedTaskIds);
+      const data = await meetingsService.getExtractedTasks(selectedMeeting.id);
+      setExtractedTasks(data);
+      setSelectedTaskIds([]);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleBulkApprove = async () => {
+    if (!selectedMeeting) return;
+    try {
+      await meetingsService.bulkApprove(selectedMeeting.id);
+      const data = await meetingsService.getExtractedTasks(selectedMeeting.id);
+      setExtractedTasks(data);
+      setSelectedTaskIds([]);
+    } catch (err) { console.error(err); }
+  };
+
+  const toggleTaskSelection = (id: number) => {
+    setSelectedTaskIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const getMeetingIcon = (type: string) => {
     switch (type) {
-      case 'video': return <Video className="w-4 h-4 text-accent-blue" />;
+      case 'meeting': return <Video className="w-4 h-4 text-accent-blue" />;
+      case 'event': return <Calendar className="w-4 h-4 text-accent-green" />;
+      case 'reminder': return <Clock className="w-4 h-4 text-accent-orange" />;
       default: return <MapPin className="w-4 h-4 text-accent-green" />;
     }
   };
+
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: 'info', label: 'Info', icon: <FileText className="w-3.5 h-3.5" /> },
+    { key: 'participants', label: 'Participants', icon: <Users className="w-3.5 h-3.5" /> },
+    { key: 'timeline', label: 'Timeline', icon: <History className="w-3.5 h-3.5" /> },
+    { key: 'mom', label: 'MOM', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { key: 'tasks', label: 'Tasks', icon: <ListChecks className="w-3.5 h-3.5" /> },
+  ];
 
   if (loading) {
     return (
@@ -151,69 +269,53 @@ export default function MeetingsPage() {
           <h3 className="text-sm font-bold text-text-primary mb-1">Failed to Load Meetings</h3>
           <p className="text-xs text-text-muted leading-relaxed">{error}</p>
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
-        >
-          Retry
-        </button>
+        <button onClick={() => window.location.reload()} className="px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors">Retry</button>
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto font-sans text-text-primary">
-      
-      {/* Left Column: Meetings directory roster */}
+      {/* Left Column: Meeting List */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-background-secondary p-4 rounded-lg border border-border-subtle shadow-sm gap-4">
           <h3 className="text-sm font-bold flex items-center gap-2">
             <Users className="w-4 h-4 text-text-secondary" />
-            Meeting Syncs ({meetings.length})
+            Meetings ({meetings.length})
           </h3>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add Event
+          <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow transition-colors">
+            <Plus className="w-4 h-4" /> New
           </button>
         </div>
 
+        <Input
+          placeholder="Search meetings..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="text-xs h-8"
+        />
+
         <div className="flex items-center gap-2">
-          {['all', 'today', 'weekly', 'monthly'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f as any)}
-              className={cn("px-3 py-1.5 text-xs font-bold rounded-md border capitalize", filter === f ? "bg-accent-blue/10 border-accent-blue text-accent-blue" : "bg-background-primary border-border-subtle text-text-secondary hover:border-text-muted")}
-            >
+          {(['all', 'today', 'weekly', 'monthly'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)} className={cn("px-3 py-1.5 text-xs font-bold rounded-md border capitalize", filter === f ? "bg-accent-blue/10 border-accent-blue text-accent-blue" : "bg-background-primary border-border-subtle text-text-secondary hover:border-text-muted")}>
               {f}
             </button>
           ))}
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
+          {meetings.length === 0 && (
+            <div className="p-6 text-center text-xs text-text-muted">No meetings found.</div>
+          )}
           {meetings.map((meet) => {
             const isSelected = meet.id === selectedId;
             return (
-              <div
-                key={meet.id}
-                onClick={() => setSelectedId(meet.id)}
-                className={cn(
-                  "p-4 rounded-lg border cursor-pointer text-left transition-all bg-background-secondary hover:border-text-muted",
-                  isSelected ? "border-accent-blue shadow-lg" : "border-border-subtle"
-                )}
-              >
+              <div key={meet.id} onClick={() => { setSelectedId(meet.id); setActiveTab('info'); }} className={cn("p-4 rounded-lg border cursor-pointer text-left transition-all bg-background-secondary hover:border-text-muted", isSelected ? "border-accent-blue shadow-lg" : "border-border-subtle")}>
                 <h4 className="text-xs font-bold text-text-primary line-clamp-1 mb-2">{meet.title}</h4>
                 <div className="flex flex-wrap items-center gap-3 text-2xs text-text-secondary">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-text-muted" /> {meet.date}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-text-muted" /> {meet.time}
-                  </span>
-                  <span className="flex items-center gap-1 uppercase font-bold text-[9px] bg-background-primary px-1.5 py-0.5 rounded border border-border-subtle">
-                    {meet.type}
-                  </span>
+                  <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-text-muted" /> {meet.date}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-text-muted" /> {meet.time}</span>
+                  {meet.status && <span className={cn("text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border", meet.status === 'completed' ? "bg-accent-green/10 border-accent-green/30 text-accent-green" : meet.status === 'cancelled' ? "bg-accent-red/10 border-accent-red/30 text-accent-red" : "bg-accent-blue/10 border-accent-blue/30 text-accent-blue")}>{meet.status}</span>}
                 </div>
               </div>
             );
@@ -221,233 +323,311 @@ export default function MeetingsPage() {
         </div>
       </div>
 
-      {/* Right Column: Active Meeting details, notes editor & MoM generation */}
+      {/* Right Column: Meeting Detail */}
       <div className="lg:col-span-2 space-y-6">
         {selectedMeeting ? (
           <>
-            {/* Top overview card */}
-            <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+            {/* Header */}
+            <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle/50 pb-4">
                 <div className="space-y-1">
-                  <span className="text-[9px] uppercase font-bold tracking-wider bg-background-primary border border-border-subtle px-2 py-0.5 rounded text-text-secondary">
-                    Meeting ID: {selectedMeeting.id}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] uppercase font-bold tracking-wider bg-background-primary border border-border-subtle px-2 py-0.5 rounded text-text-secondary">ID: {selectedMeeting.id}</span>
+                    {selectedMeeting.status && <span className={cn("text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border", selectedMeeting.status === 'completed' ? "bg-accent-green/10 border-accent-green/30 text-accent-green" : selectedMeeting.status === 'cancelled' ? "bg-accent-red/10 border-accent-red/30 text-accent-red" : "bg-accent-blue/10 border-accent-blue/30 text-accent-blue")}>{selectedMeeting.status.replace('_', ' ')}</span>}
+                  </div>
                   <h2 className="text-base font-bold font-sans mt-2">{selectedMeeting.title}</h2>
+                  {selectedMeeting.owner_name && <p className="text-[11px] text-text-muted">Hosted by {selectedMeeting.owner_name}</p>}
                 </div>
-                
-                {/* Generate MoM button */}
-                <button
-                  onClick={handleGenerateMoM}
-                  disabled={loadingMoM}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors"
-                >
-                  {loadingMoM ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  Generate MoM
-                </button>
-              </div>
-
-              {/* Attributes grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
-                  {getMeetingIcon(selectedMeeting.type)}
-                  <div>
-                    <span className="text-[10px] text-text-muted block">Format</span>
-                    <span className="font-semibold capitalize">{selectedMeeting.type}</span>
-                  </div>
-                </div>
-                <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-accent-blue" />
-                  <div>
-                    <span className="text-[10px] text-text-muted block">Scheduled Date</span>
-                    <span className="font-semibold">{selectedMeeting.date}</span>
-                  </div>
-                </div>
-                <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-accent-orange" />
-                  <div>
-                    <span className="text-[10px] text-text-muted block">Duration</span>
-                    <span className="font-semibold">{selectedMeeting.time} ({selectedMeeting.duration})</span>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={handleAccept} disabled={actionLoading === 'accept'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-green hover:bg-accent-green/80 text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                    {actionLoading === 'accept' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Accept
+                  </button>
+                  <button onClick={handleDecline} disabled={actionLoading === 'decline'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red/80 hover:bg-accent-red text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                    {actionLoading === 'decline' ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} Decline
+                  </button>
+                  <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 border border-accent-red/30 text-accent-red hover:bg-accent-red/10 text-xs font-semibold rounded-md transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              {/* Roster of attendees */}
-              <div className="space-y-2">
-                <h4 className="text-2xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-text-muted" /> Attendees ({selectedMeeting.attendees.length})
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMeeting.attendees.map((att, idx) => (
-                    <span 
-                      key={idx} 
-                      className="text-2xs bg-background-primary border border-border-subtle/60 px-2.5 py-1 rounded-full font-semibold"
-                    >
-                      {att}
-                    </span>
-                  ))}
-                </div>
+              {/* Tabs */}
+              <div className="flex gap-1 mt-4 overflow-x-auto">
+                {tabs.map(tab => (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-colors whitespace-nowrap", activeTab === tab.key ? "bg-accent-blue/10 text-accent-blue" : "text-text-secondary hover:text-text-primary hover:bg-background-primary")}>
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Two-Pane Notes Editor & Saved MoM summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Meeting Notes Editor */}
-              <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md flex flex-col h-[320px]">
-                <div className="p-4 border-b border-border-subtle flex items-center justify-between">
-                  <h3 className="text-2xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-accent-green" /> Live Notes Editor
-                  </h3>
-                  <span className="text-[9px] text-text-muted italic flex items-center gap-1">
-                    <Save className="w-3.5 h-3.5" /> Autosaved
-                  </span>
+            {/* Tab Content */}
+            {activeTab === 'info' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
+                    {getMeetingIcon(selectedMeeting.type)}
+                    <div>
+                      <span className="text-[10px] text-text-muted block">Format</span>
+                      <span className="font-semibold capitalize">{selectedMeeting.type}</span>
+                    </div>
+                  </div>
+                  <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-accent-blue" />
+                    <div>
+                      <span className="text-[10px] text-text-muted block">Date</span>
+                      <span className="font-semibold">{selectedMeeting.date}</span>
+                    </div>
+                  </div>
+                  <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-accent-orange" />
+                    <div>
+                      <span className="text-[10px] text-text-muted block">Time</span>
+                      <span className="font-semibold">{selectedMeeting.time}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-4 flex-1">
-                  <Textarea
-                    placeholder="Capture conversation topics, raw thoughts, and timeline milestones here..."
-                    className="w-full h-full resize-none bg-background-primary border-border-subtle text-xs leading-relaxed"
-                    value={selectedMeeting.notes || ''}
-                    onChange={(e) => handleNotesChange(e.target.value)}
-                  />
+
+                {(selectedMeeting.location || selectedMeeting.meeting_link || selectedMeeting.agenda) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    {selectedMeeting.location && (
+                      <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-accent-green" />
+                        <div><span className="text-[10px] text-text-muted block">Location</span><span className="font-semibold">{selectedMeeting.location}</span></div>
+                      </div>
+                    )}
+                    {selectedMeeting.meeting_link && (
+                      <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-center gap-2">
+                        <Link2 className="w-4 h-4 text-accent-blue" />
+                        <div><span className="text-[10px] text-text-muted block">Link</span><a href={selectedMeeting.meeting_link} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-blue hover:underline truncate block max-w-[150px]">Join Meeting</a></div>
+                      </div>
+                    )}
+                    {selectedMeeting.agenda && (
+                      <div className="bg-background-primary p-3 rounded border border-border-subtle/50 flex items-start gap-2 sm:col-span-3">
+                        <FileText className="w-4 h-4 text-accent-orange mt-0.5" />
+                        <div><span className="text-[10px] text-text-muted block">Agenda</span><p className="font-semibold leading-relaxed">{selectedMeeting.agenda}</p></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-background-primary p-4 rounded border border-border-subtle/50">
+                  <Textarea placeholder="Meeting notes..." className="w-full h-32 resize-none bg-transparent border-none text-xs leading-relaxed" value={selectedMeeting.notes || ''} onChange={(e) => updateMeeting(selectedMeeting.id, { notes: e.target.value })} />
                 </div>
               </div>
+            )}
 
-              {/* Generated Minutes of Meeting display */}
-              <div className="bg-background-secondary border border-border-subtle rounded-lg shadow-md flex flex-col h-[320px]">
-                <div className="p-4 border-b border-border-subtle">
-                  <h3 className="text-2xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-accent-blue" /> Saved AI Minutes (MoM)
-                  </h3>
+            {activeTab === 'participants' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><Users className="w-4 h-4 text-text-secondary" /> Participants ({selectedMeeting.participants?.length || 0})</h4>
+                <div className="space-y-2">
+                  {(selectedMeeting.participants || []).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-background-primary rounded border border-border-subtle/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-accent-blue/10 flex items-center justify-center text-xs font-bold text-accent-blue">{p.user_name?.charAt(0) || '?'}</div>
+                        <div>
+                          <span className="text-xs font-semibold">{p.user_name}</span>
+                          <span className={cn("ml-2 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded", p.status === 'accepted' ? "bg-accent-green/10 text-accent-green" : p.status === 'declined' ? "bg-accent-red/10 text-accent-red" : "bg-accent-orange/10 text-accent-orange")}>{p.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(!selectedMeeting.participants || selectedMeeting.participants.length === 0) && <p className="text-xs text-text-muted text-center py-4">No participants yet.</p>}
                 </div>
-                <div className="p-4 flex-1 overflow-y-auto bg-background-primary/30">
-                  {selectedMeeting.momText ? (
-                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
-                      {selectedMeeting.momText}
-                    </p>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-6 text-text-muted space-y-2">
-                      <Sparkles className="w-8 h-8 text-border-subtle animate-pulse" />
-                      <p className="text-[11px] leading-relaxed">
-                        No summary generated yet. Click the **Generate MoM** button above to generate a meeting recap.
-                      </p>
+              </div>
+            )}
+
+            {activeTab === 'timeline' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><History className="w-4 h-4 text-text-secondary" /> Timeline</h4>
+                {loadingTimeline ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : timeline.length === 0 ? (
+                  <p className="text-xs text-text-muted text-center py-8">No timeline events recorded.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {timeline.map((event) => (
+                      <div key={event.id} className="flex gap-3 p-3 bg-background-primary rounded border border-border-subtle/50">
+                        <div className="w-2 h-2 rounded-full bg-accent-blue mt-1.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] uppercase font-bold text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">{event.action}</span>
+                            {event.user_name && <span className="text-[10px] text-text-muted">by {event.user_name}</span>}
+                          </div>
+                          <p className="text-xs text-text-secondary mt-1">{event.description}</p>
+                          {event.created_at && <span className="text-[10px] text-text-muted mt-1 block">{new Date(event.created_at).toLocaleString()}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'mom' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-accent-blue" /> Minutes of Meeting</h4>
+
+                {/* MOM Upload */}
+                <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-3">
+                  <Textarea placeholder="Paste or type meeting minutes here..." className="w-full h-24 resize-none bg-transparent border-none text-xs" value={momText} onChange={(e) => setMomText(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button onClick={handleUploadMoM} disabled={!momText.trim() || actionLoading === 'mom'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                      {actionLoading === 'mom' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload MOM
+                    </button>
+                    {selectedMeeting.mom_summary && (
+                      <button onClick={handleAnalyzeMom} disabled={analyzingMom} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {analyzingMom ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Analyze MOM
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Saved MOM Summary */}
+                {selectedMeeting.mom_summary && (
+                  <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-2">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Summary</span>
+                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{selectedMeeting.mom_summary}</p>
+                  </div>
+                )}
+
+                {/* AI Analysis Results */}
+                {selectedMeeting.mom_executive_summary && (
+                  <div className="space-y-3">
+                    <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
+                      <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1">Executive Summary</span>
+                      <p className="text-xs text-text-secondary leading-relaxed">{selectedMeeting.mom_executive_summary}</p>
+                    </div>
+
+                    {selectedMeeting.mom_decisions && selectedMeeting.mom_decisions.length > 0 && (
+                      <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
+                        <span className="text-[10px] font-bold text-accent-green uppercase block mb-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Decisions</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_decisions.map((d, i) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}</ul>
+                      </div>
+                    )}
+
+                    {selectedMeeting.mom_risks && selectedMeeting.mom_risks.length > 0 && (
+                      <div className="bg-accent-red/5 p-4 rounded border border-accent-red/20">
+                        <span className="text-[10px] font-bold text-accent-red uppercase block mb-1 flex items-center gap-1"><Shield className="w-3 h-3" /> Risks</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_risks.map((r, i) => <li key={i} className="text-xs text-text-secondary">• {r}</li>)}</ul>
+                      </div>
+                    )}
+
+                    {selectedMeeting.mom_blockers && selectedMeeting.mom_blockers.length > 0 && (
+                      <div className="bg-accent-orange/5 p-4 rounded border border-accent-orange/20">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase block mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Blockers</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_blockers.map((b, i) => <li key={i} className="text-xs text-text-secondary">• {b}</li>)}</ul>
+                      </div>
+                    )}
+
+                    {selectedMeeting.mom_followups && selectedMeeting.mom_followups.length > 0 && (
+                      <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
+                        <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Follow-ups</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_followups.map((f, i) => <li key={i} className="text-xs text-text-secondary">• {f}</li>)}</ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!selectedMeeting.mom_summary && !momText && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <Sparkles className="w-8 h-8 text-border-subtle animate-pulse" />
+                    <p className="text-[11px] leading-relaxed">No MOM uploaded yet. Paste meeting minutes above and click Upload MOM.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'tasks' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold flex items-center gap-2"><ListChecks className="w-4 h-4 text-text-secondary" /> Extracted Tasks ({extractedTasks.length})</h4>
+                  {selectedTaskIds.length > 0 && (
+                    <div className="flex gap-2">
+                      <button onClick={handleApproveTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-green hover:bg-accent-green/80 text-white text-[10px] font-bold rounded transition-colors">
+                        <Check className="w-3 h-3" /> Approve ({selectedTaskIds.length})
+                      </button>
+                      <button onClick={handleRejectTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-red/80 hover:bg-accent-red text-white text-[10px] font-bold rounded transition-colors">
+                        <X className="w-3 h-3" /> Reject ({selectedTaskIds.length})
+                      </button>
                     </div>
                   )}
                 </div>
-              </div>
 
-            </div>
+                {loadingTasks ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : extractedTasks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <ClipboardList className="w-8 h-8 text-border-subtle" />
+                    <p className="text-[11px]">No extracted tasks. Upload MOM first, then extract tasks.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {extractedTasks.map((task) => (
+                      <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded border transition-colors", task.status === 'approved' ? "bg-accent-green/5 border-accent-green/20" : task.status === 'rejected' ? "bg-accent-red/5 border-accent-red/20 opacity-60" : "bg-background-primary border-border-subtle/50 hover:border-text-muted")}>
+                        <input type="checkbox" checked={selectedTaskIds.includes(Number(task.id))} onChange={() => toggleTaskSelection(Number(task.id))} className="mt-1 rounded border-border-subtle" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold">{task.title}</span>
+                            <span className={cn("text-[9px] uppercase font-bold px-1.5 py-0.5 rounded", task.status === 'approved' ? "bg-accent-green/10 text-accent-green" : task.status === 'rejected' ? "bg-accent-red/10 text-accent-red" : "bg-accent-orange/10 text-accent-orange")}>{task.status}</span>
+                            <span className="text-[9px] text-text-muted">{Math.round(task.confidence * 100)}% confidence</span>
+                          </div>
+                          {task.description && <p className="text-[11px] text-text-muted mt-1">{task.description}</p>}
+                          <div className="flex gap-3 mt-1 text-[10px] text-text-muted">
+                            {task.priority && <span>Priority: {task.priority}</span>}
+                            {task.suggested_owner && <span>Owner: {task.suggested_owner}</span>}
+                            {task.deadline && <span>Due: {task.deadline}</span>}
+                          </div>
+                        </div>
+                        {task.status === 'approved' && task.real_task_id && (
+                          <span className="text-[9px] text-accent-green flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" /> Created</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         ) : (
-          <div className="bg-background-secondary p-8 rounded-lg border border-border-subtle text-center text-text-muted">
-            Select a meeting from the schedule roster on the left.
-          </div>
+          <div className="bg-background-secondary p-8 rounded-lg border border-border-subtle text-center text-text-muted">Select a meeting from the list on the left.</div>
         )}
       </div>
 
-      {/* Generated MoM Preview Dialog */}
-      {generatedMoM && (
-        <Dialog open={momOpen} onOpenChange={setMomOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>AI Generated Minutes of Meeting (MoM)</DialogTitle>
-              <DialogDescription>
-                Review and save the automatic strategic meeting summary below.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="bg-background-primary p-4 rounded border border-border-subtle/50 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto font-mono">
-              {generatedMoM}
-            </div>
-
-            <DialogFooter className="gap-2">
-              <button
-                onClick={() => setMomOpen(false)}
-                className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-2xs font-semibold rounded"
-              >
-                Discard
-              </button>
-              <button
-                onClick={handleSaveMoM}
-                className="px-3 py-1.5 bg-accent-green hover:bg-accent-green-light text-white text-2xs font-semibold rounded shadow transition-all"
-              >
-                Save MoM Summary
-              </button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Add Event Modal */}
+      {/* Create Meeting Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Schedule New Meeting</DialogTitle>
-            <DialogDescription>
-              Create a new meeting event and send invites to the team.
-            </DialogDescription>
+            <DialogDescription>Create a new meeting event and send invites to the team.</DialogDescription>
           </DialogHeader>
-
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2 text-xs font-sans">
             <div className="space-y-1.5">
               <label className="text-2xs font-bold text-text-secondary uppercase">Meeting Title</label>
-              <Input
-                type="text"
-                placeholder="Q3 Planning Sync"
-                {...register('title')}
-                className={errors.title ? 'border-accent-red' : ''}
-              />
+              <Input type="text" placeholder="Q3 Planning Sync" {...register('title')} className={errors.title ? 'border-accent-red' : ''} />
               {errors.title && <span className="text-[10px] text-accent-red">{errors.title.message as string}</span>}
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-2xs font-bold text-text-secondary uppercase">Date</label>
-                <Input
-                  type="date"
-                  {...register('date')}
-                  className={errors.date ? 'border-accent-red' : ''}
-                />
+                <Input type="date" {...register('date')} className={errors.date ? 'border-accent-red' : ''} />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-2xs font-bold text-text-secondary uppercase">Time</label>
-                <Input
-                  type="time"
-                  {...register('time')}
-                  className={errors.time ? 'border-accent-red' : ''}
-                />
+                <Input type="time" {...register('time')} className={errors.time ? 'border-accent-red' : ''} />
               </div>
             </div>
-
             <div className="space-y-1.5">
               <label className="text-2xs font-bold text-text-secondary uppercase">Meeting Format</label>
-              <select
-                className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none"
-                {...register('type')}
-              >
-                <option value="video">Video Call (Zoom/Meet)</option>
-                <option value="in-person">In-Person (HQ)</option>
+              <select className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none" {...register('type')}>
+                <option value="meeting">Meeting (Video/Call)</option>
+                <option value="event">Event (In-Person)</option>
+                <option value="reminder">Reminder</option>
               </select>
             </div>
-
             <DialogFooter className="pt-2">
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(false)}
-                className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-2xs font-semibold rounded transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-2xs font-semibold rounded shadow transition-all"
-              >
-                Schedule Event
-              </button>
+              <button type="button" onClick={() => setCreateModalOpen(false)} className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-2xs font-semibold rounded transition-all">Cancel</button>
+              <button type="submit" className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-2xs font-semibold rounded shadow transition-all">Schedule Event</button>
             </DialogFooter>
           </form>
         </DialogContent>

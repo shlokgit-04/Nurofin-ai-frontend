@@ -213,13 +213,39 @@ export default function Dashboard() {
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-widest block mb-1">Budget Remaining</span>
-            <span className="text-2xl font-black text-accent-orange">
-              {metrics ? formatBudget(metrics.budgetRemaining) : '$0'}
-            </span>
+            <span className="text-[10px] text-text-secondary font-bold uppercase tracking-widest block mb-1">Pending Invites</span>
+            <span className="text-2xl font-black text-accent-orange">{summary?.pendingInvitations || 0}</span>
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Meeting Intelligence Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-accent-blue/10 rounded text-accent-blue"><FileText className="w-4 h-4" /></div>
+            <span className="text-xs font-bold text-text-secondary">Meetings Needing MOM</span>
+          </div>
+          <span className="text-2xl font-extrabold">{summary?.meetingsNeedingMOM || 0}</span>
+          <p className="text-[10px] text-text-muted mt-1">Completed/scheduled meetings without minutes</p>
+        </div>
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-accent-orange/10 rounded text-accent-orange"><CheckSquare className="w-4 h-4" /></div>
+            <span className="text-xs font-bold text-text-secondary">Tasks to Review</span>
+          </div>
+          <span className="text-2xl font-extrabold">{summary?.pendingApprovals || 0}</span>
+          <p className="text-[10px] text-text-muted mt-1">Extracted tasks pending approval</p>
+        </div>
+        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-accent-green/10 rounded text-accent-green"><Clock className="w-4 h-4" /></div>
+            <span className="text-xs font-bold text-text-secondary">Upcoming Deadlines</span>
+          </div>
+          <span className="text-2xl font-extrabold">{summary?.upcomingDeadlines || 0}</span>
+          <p className="text-[10px] text-text-muted mt-1">Tasks due in the next 7 days</p>
+        </div>
+      </div>
 
       {/* Main Core Dashboard Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
