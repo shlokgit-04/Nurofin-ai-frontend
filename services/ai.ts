@@ -132,7 +132,6 @@ export const aiService = {
   },
 
   getSuggestedPrompts: async (): Promise<string[]> => {
-<<<<<<< HEAD
     return Promise.resolve([
       "What are my tasks today?",
       "Show me all projects",
@@ -148,12 +147,5 @@ export const aiService = {
       "Generate daily briefing",
       "Review all notifications",
     ];
-=======
-    return Promise.resolve([]);
-  },
-
-  getAiRecommendations: async (): Promise<string[]> => {
-    return [];
->>>>>>> main
   },
 };

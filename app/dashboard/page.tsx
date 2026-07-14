@@ -16,7 +16,8 @@ import {
   ArrowUpRight,
   Loader2,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
@@ -207,10 +208,10 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Budget Remaining */}
+        {/* Pending Invites */}
         <motion.div variants={itemVariants} whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-orange/50 transition-all group">
           <div className="p-3.5 bg-accent-orange/10 group-hover:bg-accent-orange/20 rounded-xl text-accent-orange transition-colors shadow-inner">
-            <TrendingUp className="w-6 h-6" />
+            <Bell className="w-6 h-6" />
           </div>
           <div>
             <span className="text-[10px] text-text-secondary font-bold uppercase tracking-widest block mb-1">Pending Invites</span>
@@ -220,32 +221,34 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Meeting Intelligence Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-accent-blue/10 rounded text-accent-blue"><FileText className="w-4 h-4" /></div>
-            <span className="text-xs font-bold text-text-secondary">Meetings Needing MOM</span>
+      <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <motion.div variants={itemVariants} whileHover={{ y: -2 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-md hover:border-accent-blue/40 transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-accent-blue/10 group-hover:bg-accent-blue/20 transition-colors rounded-lg text-accent-blue"><FileText className="w-5 h-5" /></div>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-text-secondary">Meetings Needing MOM</span>
           </div>
-          <span className="text-2xl font-extrabold">{summary?.meetingsNeedingMOM || 0}</span>
-          <p className="text-[10px] text-text-muted mt-1">Completed/scheduled meetings without minutes</p>
-        </div>
-        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-accent-orange/10 rounded text-accent-orange"><CheckSquare className="w-4 h-4" /></div>
-            <span className="text-xs font-bold text-text-secondary">Tasks to Review</span>
+          <span className="text-3xl font-black text-text-primary">{summary?.meetingsNeedingMOM || 0}</span>
+          <p className="text-[11px] font-medium text-text-muted mt-2 leading-relaxed">Completed/scheduled meetings without minutes</p>
+        </motion.div>
+        
+        <motion.div variants={itemVariants} whileHover={{ y: -2 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-md hover:border-accent-orange/40 transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-accent-orange/10 group-hover:bg-accent-orange/20 transition-colors rounded-lg text-accent-orange"><CheckSquare className="w-5 h-5" /></div>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-text-secondary">Tasks to Review</span>
           </div>
-          <span className="text-2xl font-extrabold">{summary?.pendingApprovals || 0}</span>
-          <p className="text-[10px] text-text-muted mt-1">Extracted tasks pending approval</p>
-        </div>
-        <div className="bg-background-secondary border border-border-subtle rounded-lg p-5 hover:border-text-muted transition-colors">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-accent-green/10 rounded text-accent-green"><Clock className="w-4 h-4" /></div>
-            <span className="text-xs font-bold text-text-secondary">Upcoming Deadlines</span>
+          <span className="text-3xl font-black text-text-primary">{summary?.pendingApprovals || 0}</span>
+          <p className="text-[11px] font-medium text-text-muted mt-2 leading-relaxed">Extracted tasks pending approval</p>
+        </motion.div>
+        
+        <motion.div variants={itemVariants} whileHover={{ y: -2 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-md hover:border-accent-green/40 transition-all group">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-accent-green/10 group-hover:bg-accent-green/20 transition-colors rounded-lg text-accent-green"><Clock className="w-5 h-5" /></div>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-text-secondary">Upcoming Deadlines</span>
           </div>
-          <span className="text-2xl font-extrabold">{summary?.upcomingDeadlines || 0}</span>
-          <p className="text-[10px] text-text-muted mt-1">Tasks due in the next 7 days</p>
-        </div>
-      </div>
+          <span className="text-3xl font-black text-text-primary">{summary?.upcomingDeadlines || 0}</span>
+          <p className="text-[11px] font-medium text-text-muted mt-2 leading-relaxed">Tasks due in the next 7 days</p>
+        </motion.div>
+      </motion.div>
 
       {/* Main Core Dashboard Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
