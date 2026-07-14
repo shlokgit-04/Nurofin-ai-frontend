@@ -338,7 +338,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
-            <label className="text-2xs font-bold text-text-secondary uppercase tracking-wider">Company / Merchant Name</label>
+            <label className="text-2xs font-bold text-text-secondary uppercase tracking-wider">Department Name</label>
             <Input 
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
