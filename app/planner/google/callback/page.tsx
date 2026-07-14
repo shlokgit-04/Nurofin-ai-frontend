@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { plannerService } from '@/services/planner';
 
@@ -9,8 +9,11 @@ export default function GoogleCallbackPage() {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Connecting Google Calendar...');
+  const calledRef = useRef(false);
 
   useEffect(() => {
+    if (calledRef.current) return;
+    
     const code = searchParams.get('code');
     const error = searchParams.get('error');
 
@@ -25,6 +28,8 @@ export default function GoogleCallbackPage() {
       setMessage('No authorization code received.');
       return;
     }
+    
+    calledRef.current = true;
 
     const handleCallback = async () => {
       try {
