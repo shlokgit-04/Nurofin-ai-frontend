@@ -16,6 +16,11 @@ export interface DashboardSummary {
   overdueTasks: number;
   todayMeetings: number;
   highPriorityTasks: number;
+  pendingInvitations: number;
+  meetingsNeedingMOM: number;
+  pendingApprovals: number;
+  upcomingDeadlines: number;
+  recentActivity?: { action: string; description: string; time: string }[];
 }
 
 export const dashboardService = {

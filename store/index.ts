@@ -20,6 +20,8 @@ interface AppState {
   searchQuery: string;
   activeTab: string;
   aiStatus: 'idle' | 'analyzing' | 'thinking';
+  selectedProvider: string;
+  selectedModel: string;
   
   // App Entities
   userProfile: UserProfile;
@@ -36,6 +38,8 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   setActiveTab: (tab: string) => void;
   setAiStatus: (status: 'idle' | 'analyzing' | 'thinking') => void;
+  setSelectedProvider: (provider: string) => void;
+  setSelectedModel: (model: string) => void;
   
   // User Profile Actions
   updateUserProfile: (profile: Partial<UserProfile>) => void;
@@ -77,6 +81,8 @@ export const useStore = create<AppState>((set) => ({
   searchQuery: '',
   activeTab: 'dashboard',
   aiStatus: 'idle',
+  selectedProvider: 'openrouter',
+  selectedModel: 'openai/gpt-oss-20b:free',
 
   // Mock User Profile
   userProfile: {
@@ -223,6 +229,8 @@ export const useStore = create<AppState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setActiveTab: (tab) => set({ activeTab: tab }),
   setAiStatus: (status) => set({ aiStatus: status }),
+  setSelectedProvider: (provider: string) => set({ selectedProvider: provider }),
+  setSelectedModel: (model: string) => set({ selectedModel: model }),
 
   // User Actions
   updateUserProfile: (profile) => set((state) => ({

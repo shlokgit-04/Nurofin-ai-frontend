@@ -77,6 +77,39 @@ export interface Task {
   comments?: TaskComment[];
 }
 
+export interface MeetingParticipant {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar?: string;
+  status: 'pending' | 'accepted' | 'declined' | 'maybe';
+}
+
+export interface MeetingTimelineEvent {
+  id: string;
+  meeting_id: string;
+  action: string;
+  description: string;
+  user_id?: string;
+  user_name?: string;
+  metadata?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface MeetingExtractedTask {
+  id: string;
+  meeting_id: string;
+  title: string;
+  description?: string;
+  priority: string;
+  suggested_owner?: string;
+  deadline?: string;
+  dependencies?: string[];
+  confidence: number;
+  status: 'pending' | 'approved' | 'rejected';
+  real_task_id?: string;
+}
+
 export interface Meeting {
   id: string;
   title: string;
@@ -87,6 +120,31 @@ export interface Meeting {
   notes?: string;
   momText?: string;
   type: string;
+  status?: string;
+  owner_id?: string;
+  owner_name?: string;
+  owner_avatar?: string;
+  participants?: MeetingParticipant[];
+  participants_count?: number;
+  mom_summary?: string;
+  mom_file_path?: string;
+  created_at?: string;
+  agenda?: string;
+  meeting_link?: string;
+  location?: string;
+  timezone?: string;
+  is_recurring?: boolean;
+  recurrence_rule?: string;
+  mom_executive_summary?: string;
+  mom_decisions?: string[];
+  mom_action_items?: string[];
+  mom_risks?: string[];
+  mom_blockers?: string[];
+  mom_followups?: string[];
+  mom_deadlines?: string[];
+  mom_important_dates?: string[];
+  timeline?: MeetingTimelineEvent[];
+  extracted_tasks?: MeetingExtractedTask[];
 }
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved';
@@ -123,4 +181,6 @@ export interface NotificationItem {
   type: 'info' | 'success' | 'warning' | 'error';
   read: boolean;
   category: 'general' | 'tasks' | 'meetings' | 'finance' | 'alerts';
+  link?: string;
+  notification_type?: string;
 }
