@@ -9,6 +9,8 @@ export interface UserProfile {
   github?: string;
   linkedin?: string;
   phone?: string;
+  username?: string;
+  is_active?: boolean;
 }
 export interface User {
   id: string;

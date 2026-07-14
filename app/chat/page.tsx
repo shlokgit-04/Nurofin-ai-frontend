@@ -152,8 +152,17 @@ export default function AiAssistantPage() {
   };
 
   const handleAttachFile = (fileType: string, extension: string) => {
+<<<<<<< HEAD
     const mockFile = { name: `Document_Report.${extension}`, type: fileType, size: '1.2 MB' };
     setAttachedFiles(prev => [...prev, mockFile]);
+=======
+    const simulatedFile = {
+      name: `Document_Report.${extension}`,
+      type: fileType,
+      size: '1.2 MB',
+    };
+    setAttachedFiles(prev => [...prev, simulatedFile]);
+>>>>>>> main
     setPlusMenuOpen(false);
   };
 

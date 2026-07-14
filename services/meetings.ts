@@ -118,8 +118,12 @@ export const meetingsService = {
   },
 
   getMeetingSummary: async (title: string): Promise<string> => {
+<<<<<<< HEAD
     await new Promise(r => setTimeout(r, 1500));
     return `AI Summary generated for: ${title}\n\n- Discussed key strategic deliverables.\n- Aligned on Q4 milestones and resource allocation.\n- Next Steps: Review finalizing budget next week.`;
+=======
+    return "";
+>>>>>>> main
   },
 
   createMeeting: async (meeting: Partial<Meeting> & { participant_ids?: number[] }): Promise<Meeting> => {
@@ -137,7 +141,7 @@ export const meetingsService = {
       recurrence_rule: meeting.recurrence_rule,
       participant_ids: meeting.participant_ids || [],
     };
-    const res = await fetch('/api/v1/meetings/', {
+    const res = await fetch('/api/v1/meetings', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload)

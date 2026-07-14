@@ -13,7 +13,7 @@ const getHeaders = () => {
 
 export const tasksService = {
   getTasks: async (): Promise<Task[]> => {
-    const res = await fetch('/api/v1/tasks/', { headers: getHeaders() });
+    const res = await fetch('/api/v1/tasks', { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch tasks');
     const json = await res.json();
     return (json.data || []).map((t: any) => ({
@@ -41,7 +41,7 @@ export const tasksService = {
       assigned_to_id: (task as any).assigneeId ? parseInt((task as any).assigneeId, 10) : undefined,
       project_id: task.projectId ? parseInt(task.projectId, 10) : undefined
     };
-    const res = await fetch('/api/v1/tasks/', {
+    const res = await fetch('/api/v1/tasks', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload)

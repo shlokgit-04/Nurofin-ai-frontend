@@ -13,7 +13,7 @@ const getHeaders = () => {
 
 export const projectsService = {
   getProjects: async (): Promise<Project[]> => {
-    const res = await fetch('/api/v1/projects/', { headers: getHeaders() });
+    const res = await fetch('/api/v1/projects', { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch projects');
     const json = await res.json();
     return (json.data || []).map((p: any) => ({
@@ -63,7 +63,7 @@ export const projectsService = {
       budget: project.budget || 0,
       spending: project.spending || 0
     };
-    const res = await fetch('/api/v1/projects/', {
+    const res = await fetch('/api/v1/projects', {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload)

@@ -17,6 +17,8 @@ interface AppState {
   // Navigation & Shell
   sidebarCollapsed: boolean;
   theme: 'dark' | 'light';
+  themeColor: 'blue' | 'purple' | 'green' | 'orange' | 'red' | 'custom';
+  customColor: string;
   searchQuery: string;
   activeTab: string;
   aiStatus: 'idle' | 'analyzing' | 'thinking';
@@ -35,6 +37,8 @@ interface AppState {
   // Mutators
   toggleSidebar: () => void;
   setTheme: (theme: 'dark' | 'light') => void;
+  setThemeColor: (color: 'blue' | 'purple' | 'green' | 'orange' | 'red' | 'custom') => void;
+  setCustomColor: (hex: string) => void;
   setSearchQuery: (query: string) => void;
   setActiveTab: (tab: string) => void;
   setAiStatus: (status: 'idle' | 'analyzing' | 'thinking') => void;
@@ -78,65 +82,30 @@ export const useStore = create<AppState>((set) => ({
   // Navigation & Shell Defaults
   sidebarCollapsed: false,
   theme: 'light',
+  themeColor: 'blue',
+  customColor: '#10B981',
   searchQuery: '',
   activeTab: 'dashboard',
   aiStatus: 'idle',
   selectedProvider: 'openrouter',
   selectedModel: 'openai/gpt-oss-20b:free',
 
-  // Mock User Profile
+  // Initial empty User Profile
   userProfile: {
-    id: 'usr-1',
-    name: 'Vincent N.',
-    email: 'vincent@nurofin.com',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
-    role: 'CEO',
-    department: 'Executive Office',
-    skills: ['Strategic Planning', 'Capital Allocation', 'Executive Leadership', 'Mergers & Acquisitions', 'Financial Operations'],
-    github: 'https://github.com/vincent-nurofin',
-    linkedin: 'https://linkedin.com/in/vincent-nurofin',
-    phone: '+1 (555) 019-2834',
+    id: '',
+    name: '',
+    email: '',
+    avatar: '',
+    role: '',
+    department: '',
+    skills: [],
+    github: '',
+    linkedin: '',
+    phone: '',
   },
 
-  // Mock Notifications
-  notifications: [
-    {
-      id: 'notif-1',
-      title: 'Overdue Vendor Payment Alert',
-      description: 'Acme Corp invoice of $12,450 is 3 days overdue. Tap to view details.',
-      time: '10 mins ago',
-      type: 'error',
-      read: false,
-      category: 'finance',
-    },
-    {
-      id: 'notif-2',
-      title: 'Q2 Strategy Briefing Meeting',
-      description: 'Q2 Strategy Review begins in 15 minutes. Note editor has been initialized.',
-      time: '15 mins ago',
-      type: 'info',
-      read: false,
-      category: 'meetings',
-    },
-    {
-      id: 'notif-3',
-      title: 'Project Delta Delay Risk',
-      description: 'Project Delta timeline is at risk due to pending API keys from integrations.',
-      time: '2 hours ago',
-      type: 'warning',
-      read: false,
-      category: 'tasks',
-    },
-    {
-      id: 'notif-4',
-      title: 'Permissions Audit Complete',
-      description: 'The weekly automated role and permissions audit resolved successfully.',
-      time: '1 day ago',
-      type: 'success',
-      read: true,
-      category: 'alerts',
-    },
-  ],
+  // Notifications
+  notifications: [],
 
   // Mock Projects
   projects: [],
@@ -147,84 +116,40 @@ export const useStore = create<AppState>((set) => ({
   // Mock Meetings
   meetings: [],
 
-  // Mock Issues
-  issues: [
-    {
-      id: 'iss-1',
-      title: 'Compliance mismatch on ledger sharding schema',
-      description: 'Audit logs throw warning on Q2 formatting standards due to timestamp variance.',
-      status: 'open',
-      severity: 'high',
-      assignedTo: 'John Doe',
-      createdAt: '2026-07-05',
-    },
-    {
-      id: 'iss-2',
-      title: 'CORS policy blocks public logo vectors',
-      description: 'Light/Dark mode SVGs return CORS preflight error on static CDN assets.',
-      status: 'in_progress',
-      severity: 'medium',
-      assignedTo: 'Aryan Dev',
-      createdAt: '2026-07-06',
-    },
-  ],
+  // Issues
+  issues: [],
 
-  // Mock Finance Records
-  financeRecords: [
-    {
-      id: 'fin-1',
-      category: 'vendor_payment',
-      title: 'Acme Developer Seat Licenses',
-      amount: 12450.00,
-      dueDate: '2026-07-03',
-      status: 'overdue',
-      vendor: 'Acme Corp',
-      department: 'Engineering',
-    },
-    {
-      id: 'fin-2',
-      category: 'expense',
-      title: 'GetStream Real-Time Chat Plan',
-      amount: 4500.00,
-      dueDate: '2026-07-15',
-      status: 'pending',
-      vendor: 'Stream.io',
-      department: 'Product',
-    },
-    {
-      id: 'fin-3',
-      category: 'budget',
-      title: 'Q3 Enterprise Infrastructure Budget',
-      amount: 150000.00,
-      dueDate: '2026-09-01',
-      status: 'approved',
-      department: 'Operations',
-      chartData: [
-        { name: 'Hosting', value: 80000 },
-        { name: 'Licenses', value: 35000 },
-        { name: 'Support', value: 20000 },
-        { name: 'Reserves', value: 15000 },
-      ],
-    },
-    {
-      id: 'fin-4',
-      category: 'renewal',
-      title: 'AWS Ledger DB Instances Renewal',
-      amount: 28900.00,
-      dueDate: '2026-08-01',
-      status: 'pending',
-      vendor: 'Amazon Web Services',
-      department: 'Infrastructure',
-    },
-  ],
+  // Finance Records
+  financeRecords: [],
 
   // Shell State Mutators
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setTheme: (theme) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('nurofin-theme', theme);
-    }
-    set({ theme });
+    set((state) => {
+      const userId = state.userProfile.id;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(userId ? `nurofin-theme:${userId}` : 'nurofin-theme', theme);
+      }
+      return { theme };
+    });
+  },
+  setThemeColor: (themeColor) => {
+    set((state) => {
+      const userId = state.userProfile.id;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(userId ? `nurofin-theme-color:${userId}` : 'nurofin-theme-color', themeColor);
+      }
+      return { themeColor };
+    });
+  },
+  setCustomColor: (customColor) => {
+    set((state) => {
+      const userId = state.userProfile.id;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(userId ? `nurofin-custom-color:${userId}` : 'nurofin-custom-color', customColor);
+      }
+      return { customColor };
+    });
   },
   setSearchQuery: (query) => set({ searchQuery: query }),
   setActiveTab: (tab) => set({ activeTab: tab }),
