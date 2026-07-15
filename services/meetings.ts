@@ -118,12 +118,8 @@ export const meetingsService = {
   },
 
   getMeetingSummary: async (title: string): Promise<string> => {
-<<<<<<< HEAD
     await new Promise(r => setTimeout(r, 1500));
     return `AI Summary generated for: ${title}\n\n- Discussed key strategic deliverables.\n- Aligned on Q4 milestones and resource allocation.\n- Next Steps: Review finalizing budget next week.`;
-=======
-    return "";
->>>>>>> main
   },
 
   createMeeting: async (meeting: Partial<Meeting> & { participant_ids?: number[] }): Promise<Meeting> => {

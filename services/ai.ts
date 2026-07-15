@@ -117,14 +117,21 @@ export const aiService = {
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
+          const raw = line.slice(6).trim();
+          if (raw === '[DONE]') return;
+          if (!raw) continue;
           try {
-            const data = JSON.parse(line.slice(6));
+            const data = JSON.parse(raw);
             if (data.error) throw new Error(data.error);
-            if (data.done) return;
-            if (data.content) yield data.content;
+            if (data.content !== undefined && data.content !== null) {
+              yield data.content;
+            }
           } catch (e) {
-            if (e instanceof SyntaxError) continue;
-            throw e;
+            if (e instanceof SyntaxError) {
+              yield raw;
+            } else {
+              throw e;
+            }
           }
         }
       }
@@ -132,7 +139,6 @@ export const aiService = {
   },
 
   getSuggestedPrompts: async (): Promise<string[]> => {
-<<<<<<< HEAD
     return Promise.resolve([
       "What are my tasks today?",
       "Show me all projects",
@@ -148,12 +154,5 @@ export const aiService = {
       "Generate daily briefing",
       "Review all notifications",
     ];
-=======
-    return Promise.resolve([]);
-  },
-
-  getAiRecommendations: async (): Promise<string[]> => {
-    return [];
->>>>>>> main
   },
 };
