@@ -499,31 +499,31 @@ export default function MeetingsPage() {
                       <p className="text-xs text-text-secondary leading-relaxed">{selectedMeeting.mom_executive_summary}</p>
                     </div>
 
-                    {selectedMeeting.mom_decisions && selectedMeeting.mom_decisions.length > 0 && (
+                    {Array.isArray(selectedMeeting.mom_decisions) && selectedMeeting.mom_decisions.length > 0 && (
                       <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
                         <span className="text-[10px] font-bold text-accent-green uppercase block mb-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Decisions</span>
-                        <ul className="space-y-1">{selectedMeeting.mom_decisions.map((d, i) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}</ul>
+                        <ul className="space-y-1">{selectedMeeting.mom_decisions.map((d: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}</ul>
                       </div>
                     )}
 
-                    {selectedMeeting.mom_risks && selectedMeeting.mom_risks.length > 0 && (
+                    {Array.isArray(selectedMeeting.mom_risks) && selectedMeeting.mom_risks.length > 0 && (
                       <div className="bg-accent-red/5 p-4 rounded border border-accent-red/20">
                         <span className="text-[10px] font-bold text-accent-red uppercase block mb-1 flex items-center gap-1"><Shield className="w-3 h-3" /> Risks</span>
-                        <ul className="space-y-1">{selectedMeeting.mom_risks.map((r, i) => <li key={i} className="text-xs text-text-secondary">• {r}</li>)}</ul>
+                        <ul className="space-y-1">{selectedMeeting.mom_risks.map((r: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {r}</li>)}</ul>
                       </div>
                     )}
 
-                    {selectedMeeting.mom_blockers && selectedMeeting.mom_blockers.length > 0 && (
+                    {Array.isArray(selectedMeeting.mom_blockers) && selectedMeeting.mom_blockers.length > 0 && (
                       <div className="bg-accent-orange/5 p-4 rounded border border-accent-orange/20">
                         <span className="text-[10px] font-bold text-accent-orange uppercase block mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Blockers</span>
-                        <ul className="space-y-1">{selectedMeeting.mom_blockers.map((b, i) => <li key={i} className="text-xs text-text-secondary">• {b}</li>)}</ul>
+                        <ul className="space-y-1">{selectedMeeting.mom_blockers.map((b: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {b}</li>)}</ul>
                       </div>
                     )}
 
-                    {selectedMeeting.mom_followups && selectedMeeting.mom_followups.length > 0 && (
+                    {Array.isArray(selectedMeeting.mom_followups) && selectedMeeting.mom_followups.length > 0 && (
                       <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
                         <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Follow-ups</span>
-                        <ul className="space-y-1">{selectedMeeting.mom_followups.map((f, i) => <li key={i} className="text-xs text-text-secondary">• {f}</li>)}</ul>
+                        <ul className="space-y-1">{selectedMeeting.mom_followups.map((f: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {f}</li>)}</ul>
                       </div>
                     )}
                   </div>

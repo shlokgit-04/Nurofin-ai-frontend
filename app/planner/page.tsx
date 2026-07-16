@@ -469,7 +469,7 @@ export default function PlannerPage() {
             <h2 className="text-xl font-extrabold flex items-center gap-2 text-text-primary tracking-tight">
               {selectedUserInfo?.full_name || 'Team'}&apos;s Workspace
               {isOwnSchedule && <span className="text-[10px] bg-accent-blue/20 text-accent-blue px-2.5 py-1 rounded-full font-bold shadow-sm uppercase tracking-wider">Your Schedule</span>}
-              {!isOwnSchedule && <Lock className="w-4 h-4 text-text-muted" title="Read-only view" />}
+              {!isOwnSchedule && <span title="Read-only view"><Lock className="w-4 h-4 text-text-muted" /></span>}
             </h2>
             <p className="text-xs text-text-secondary mt-1 flex items-center gap-1.5">
               {selectedUserInfo?.google_connected ? <CheckCircle2 className="w-3 h-3 text-accent-green" /> : <AlertCircle className="w-3 h-3 text-text-muted" />}
@@ -968,7 +968,7 @@ export default function PlannerPage() {
                       <motion.div 
                         key={task.id} 
                         variants={itemVariants}
-                        whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
+                        whileHover={{ y: -4 }}
                         className="bg-background-primary border border-border-subtle rounded-xl p-5 shadow-sm hover:border-accent-purple/50 transition-all group flex flex-col h-full"
                       >
                         <div className="flex justify-between items-start mb-3">

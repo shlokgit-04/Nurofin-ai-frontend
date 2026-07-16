@@ -11,6 +11,19 @@ const getHeaders = () => {
   };
 };
 
+function parseJsonArray(val: unknown): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function mapMeeting(m: any): Meeting {
   return {
     id: m.id.toString(),
@@ -44,13 +57,13 @@ function mapMeeting(m: any): Meeting {
     is_recurring: m.is_recurring,
     recurrence_rule: m.recurrence_rule,
     mom_executive_summary: m.mom_executive_summary,
-    mom_decisions: m.mom_decisions || [],
-    mom_action_items: m.mom_action_items || [],
-    mom_risks: m.mom_risks || [],
-    mom_blockers: m.mom_blockers || [],
-    mom_followups: m.mom_followups || [],
-    mom_deadlines: m.mom_deadlines || [],
-    mom_important_dates: m.mom_important_dates || [],
+    mom_decisions: parseJsonArray(m.mom_decisions),
+    mom_action_items: parseJsonArray(m.mom_action_items),
+    mom_risks: parseJsonArray(m.mom_risks),
+    mom_blockers: parseJsonArray(m.mom_blockers),
+    mom_followups: parseJsonArray(m.mom_followups),
+    mom_deadlines: parseJsonArray(m.mom_deadlines),
+    mom_important_dates: parseJsonArray(m.mom_important_dates),
     timeline: m.timeline?.map((t: any) => ({
       id: t.id?.toString() || '',
       meeting_id: t.meeting_id?.toString() || '',

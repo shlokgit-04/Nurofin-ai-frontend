@@ -112,11 +112,11 @@ export default function Dashboard() {
         staggerChildren: 0.1
       }
     }
-  };
+  } as const;
   
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
   };
 
   if (loading) {
@@ -176,7 +176,7 @@ export default function Dashboard() {
       {/* Primary KPI Grid */}
       <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Meetings Today */}
-        <motion.div variants={itemVariants} whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-blue/50 transition-all group">
+        <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-blue/50 transition-all group">
           <div className="p-3.5 bg-accent-blue/10 group-hover:bg-accent-blue/20 rounded-xl text-accent-blue transition-colors shadow-inner">
             <Calendar className="w-6 h-6" />
           </div>
@@ -187,7 +187,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Assigned Tasks */}
-        <motion.div variants={itemVariants} whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-green/50 transition-all group">
+        <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-green/50 transition-all group">
           <div className="p-3.5 bg-accent-green/10 group-hover:bg-accent-green/20 rounded-xl text-accent-green transition-colors shadow-inner">
             <CheckSquare className="w-6 h-6" />
           </div>
@@ -198,7 +198,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Overdue Tasks */}
-        <motion.div variants={itemVariants} whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-red/50 transition-all group">
+        <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-red/50 transition-all group">
           <div className="p-3.5 bg-accent-red/10 group-hover:bg-accent-red/20 rounded-xl text-accent-red transition-colors shadow-inner">
             <AlertTriangle className="w-6 h-6" />
           </div>
@@ -209,7 +209,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Pending Invites */}
-        <motion.div variants={itemVariants} whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-orange/50 transition-all group">
+        <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center gap-5 hover:border-accent-orange/50 transition-all group">
           <div className="p-3.5 bg-accent-orange/10 group-hover:bg-accent-orange/20 rounded-xl text-accent-orange transition-colors shadow-inner">
             <Bell className="w-6 h-6" />
           </div>

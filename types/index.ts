@@ -52,7 +52,7 @@ export interface Project {
   tasks?: Task[];
 }
 
-export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'completed' | 'blocked';
 export type TaskPriority = 'low' | 'medium' | 'high';
 
 export interface TaskComment {
