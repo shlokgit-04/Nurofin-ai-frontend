@@ -137,7 +137,7 @@ function UserAvatar({ src, name }: { src: string; name: string }) {
 
 export default function AdminPanelPage() {
   const { userProfile } = useStore();
-  const isCEO = userProfile.role === 'CEO';
+  const isCEO = userProfile.role === 'CEO' || userProfile.role === 'ceo';
 
   // State variables
   const [users, setUsers] = useState<User[]>([]);
@@ -462,10 +462,10 @@ export default function AdminPanelPage() {
 
   const formRolesOptions = departments.find(d => d.name === newUser.department)?.roles || [];
 
-  const ceoUser = users.find(u => u.role === 'CEO' || u.email === 'vincent@nurofin.com');
+  const ceoUser = users.find(u => u.role === 'CEO' || u.role === 'ceo' || u.email === 'vincent@nurofin.com');
 
   const filteredUsers = users.filter(u => {
-    if (u.role === 'CEO' || u.email === 'vincent@nurofin.com') return false;
+    if (u.role === 'CEO' || u.role === 'ceo' || u.email === 'vincent@nurofin.com') return false;
 
     const matchesSearch = 
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -812,7 +812,7 @@ export default function AdminPanelPage() {
                           <TableCell className="py-2.5">
                             <span className={cn(
                               "text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 shadow-sm",
-                              u.role === 'CEO' 
+                              u.role === 'CEO' || u.role === 'ceo' 
                                 ? "text-amber-500 bg-amber-500/[0.04] border-amber-550/20" 
                                 : "text-blue-500 bg-blue-500/[0.04] border-blue-550/20"
                             )}>
