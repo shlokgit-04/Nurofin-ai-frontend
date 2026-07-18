@@ -4,6 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || "http://127.0.0.1:8001";
 
 const nextConfig: NextConfig = {
+  output: "export",
+  images: {
+    unoptimized: true,
+  },
   async rewrites() {
     return [
       {

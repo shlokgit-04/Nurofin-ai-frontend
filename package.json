@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cf:dev": "npx wrangler pages dev out --compatibility-flag=nodejs_compat",
+    "cf:deploy": "npx wrangler pages deploy out --project-name=nurofin-ai-frontend"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -41,6 +43,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^8",
     "eslint-config-next": "^15.1.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.0.0"
   }
 }
