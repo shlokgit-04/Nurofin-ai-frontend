@@ -816,7 +816,7 @@ export default function AdminPanelPage() {
                                 ? "text-amber-500 bg-amber-500/[0.04] border-amber-550/20" 
                                 : "text-blue-500 bg-blue-500/[0.04] border-blue-550/20"
                             )}>
-                              {u.role || 'Member'}
+                              {u.role ? u.role.toUpperCase() : 'MEMBER'}
                             </span>
                           </TableCell>
 
@@ -1259,7 +1259,7 @@ export default function AdminPanelPage() {
                           {/* Col 4: Role */}
                           <TableCell className="py-3">
                             <span className="text-[9px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 shadow-sm text-slate-500 bg-slate-500/[0.04] border-slate-400/20">
-                              {u.role || 'Member'}
+                              {u.role ? u.role.toUpperCase() : 'MEMBER'}
                             </span>
                           </TableCell>
 
