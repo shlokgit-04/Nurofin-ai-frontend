@@ -55,7 +55,6 @@ export const aiService = {
         },
         body: JSON.stringify({
           message: lastMessage.content,
-          auth_token: authToken,
         }),
       });
 
@@ -91,7 +90,6 @@ export const aiService = {
       },
       body: JSON.stringify({
         message,
-        auth_token: authToken,
         provider: options?.provider,
         model: options?.model,
       }),

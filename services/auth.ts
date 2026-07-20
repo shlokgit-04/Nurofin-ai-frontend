@@ -62,7 +62,11 @@ export const authService = {
     return data.data;
   },
   refresh: async (token: string): Promise<string> => {
-    return Promise.resolve("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new_dummy_token");
+    const res = await fetch('/api/v1/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Token expired');
+    return token;
   },
   logout: async (): Promise<void> => {
     return Promise.resolve();

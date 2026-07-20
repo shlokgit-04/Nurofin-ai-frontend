@@ -71,7 +71,11 @@ function mapMeeting(m: any): Meeting {
       description: t.description || '',
       user_id: t.user_id?.toString(),
       user_name: t.user_name,
-      metadata: t.metadata_json ? (typeof t.metadata_json === 'string' ? JSON.parse(t.metadata_json) : t.metadata_json) : undefined,
+      metadata: (() => {
+        if (!t.metadata_json) return undefined;
+        if (typeof t.metadata_json !== 'string') return t.metadata_json;
+        try { return JSON.parse(t.metadata_json); } catch { return undefined; }
+      })(),
       created_at: t.created_at,
     })) || [],
     extracted_tasks: m.extracted_tasks?.map((t: any) => ({
@@ -239,7 +243,11 @@ export const meetingsService = {
       description: t.description || '',
       user_id: t.user_id?.toString(),
       user_name: t.user_name,
-      metadata: t.metadata_json ? (typeof t.metadata_json === 'string' ? JSON.parse(t.metadata_json) : t.metadata_json) : undefined,
+      metadata: (() => {
+        if (!t.metadata_json) return undefined;
+        if (typeof t.metadata_json !== 'string') return t.metadata_json;
+        try { return JSON.parse(t.metadata_json); } catch { return undefined; }
+      })(),
       created_at: t.created_at,
     }));
   },

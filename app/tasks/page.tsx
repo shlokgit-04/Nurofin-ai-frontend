@@ -117,7 +117,9 @@ export default function WorkCenterPage() {
       case 'todo': return 'To Do';
       case 'in_progress': return 'In Progress';
       case 'review': return 'Under Review';
-      case 'done': return 'Completed';
+      case 'done': return 'Done';
+      case 'completed': return 'Completed';
+      case 'blocked': return 'Blocked';
     }
   };
 
@@ -259,8 +261,8 @@ export default function WorkCenterPage() {
 
         {/* 1. Kanban Board view tab content */}
         <TabsContent value="kanban" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {(['todo', 'in_progress', 'review', 'done'] as TaskStatus[]).map((col) => {
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {(['todo', 'in_progress', 'review', 'completed', 'blocked', 'done'] as TaskStatus[]).map((col) => {
               const colTasks = tasks.filter(t => {
                 if (t.status !== col) return false;
                 if (filterProjectId === 'all') return true;
@@ -337,6 +339,8 @@ export default function WorkCenterPage() {
                             <option value="todo">To Do</option>
                             <option value="in_progress">In Progress</option>
                             <option value="review">Review</option>
+                            <option value="completed">Completed</option>
+                            <option value="blocked">Blocked</option>
                             <option value="done">Done</option>
                           </select>
                         </div>
@@ -629,7 +633,9 @@ export default function WorkCenterPage() {
                 <option value="todo">To Do</option>
                 <option value="in_progress">In Progress</option>
                 <option value="review">Under Review</option>
-                <option value="done">Completed</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
               </select>
             </div>
 

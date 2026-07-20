@@ -92,8 +92,11 @@ export default function ClientLayout({
     let userId = '';
     if (token) {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        userId = String(payload.sub || '');
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          userId = String(payload.sub || '');
+        }
       } catch (e) {}
     }
 
