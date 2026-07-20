@@ -147,6 +147,11 @@ export interface Meeting {
   mom_important_dates?: string[];
   timeline?: MeetingTimelineEvent[];
   extracted_tasks?: MeetingExtractedTask[];
+  transcript?: string;
+  ai_summary?: string;
+  minutes_of_meeting?: string;
+  analysis_status?: 'uploaded' | 'processing' | 'completed' | 'failed';
+  metadata_json?: string;
 }
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved';

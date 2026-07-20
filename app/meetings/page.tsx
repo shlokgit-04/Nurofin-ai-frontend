@@ -9,7 +9,7 @@ import {
   Users, Clock, Calendar, Video, MapPin, Sparkles, FileText, Plus, Loader2,
   Save, AlertCircle, Check, X, Upload, UserPlus, Trash2, Link2, Globe,
   AlertTriangle, ListChecks, MessageSquare, Shield, Target, ChevronRight,
-  CheckCircle2, XCircle, History, ClipboardList
+  CheckCircle2, XCircle, History, ClipboardList, BrainCircuit, BookOpen
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,7 +26,7 @@ const meetingSchema = z.object({
 });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 
-type Tab = 'info' | 'participants' | 'timeline' | 'mom' | 'tasks';
+type Tab = 'info' | 'participants' | 'timeline' | 'transcript' | 'summary' | 'minutes' | 'tasks';
 
 export default function MeetingsPage() {
   const { meetings, setMeetings, addMeeting, updateMeeting } = useStore();
@@ -38,21 +38,26 @@ export default function MeetingsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  // MOM states
   const [loadingMoM, setLoadingMoM] = useState(false);
   const [momText, setMomText] = useState('');
   const [analyzingMom, setAnalyzingMom] = useState(false);
 
-  // Timeline state
   const [timeline, setTimeline] = useState<MeetingTimelineEvent[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
-  // Extracted tasks state
   const [extractedTasks, setExtractedTasks] = useState<MeetingExtractedTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
 
-  // Create modal
+  const [transcriptText, setTranscriptText] = useState('');
+  const [uploadingTranscript, setUploadingTranscript] = useState(false);
+
+  const [summaryData, setSummaryData] = useState<{ summary: string | null; analysis_status: string | null } | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const [momData, setMomData] = useState<{ mom: any; mom_summary: string | null; analysis_status: string | null } | null>(null);
+  const [loadingMomData, setLoadingMomData] = useState(false);
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<MeetingFormValues>({
@@ -87,7 +92,6 @@ export default function MeetingsPage() {
 
   const selectedMeeting = meetings.find(m => m.id === selectedId);
 
-  // Load timeline when tab changes
   useEffect(() => {
     if (activeTab !== 'timeline' || !selectedId) return;
     let active = true;
@@ -103,7 +107,6 @@ export default function MeetingsPage() {
     return () => { active = false; };
   }, [activeTab, selectedId]);
 
-  // Load extracted tasks when tab changes
   useEffect(() => {
     if (activeTab !== 'tasks' || !selectedId) return;
     let active = true;
@@ -114,6 +117,36 @@ export default function MeetingsPage() {
         if (active) { setExtractedTasks(data); setSelectedTaskIds([]); }
       } catch { if (active) setExtractedTasks([]); }
       finally { if (active) setLoadingTasks(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
+
+  useEffect(() => {
+    if (activeTab !== 'summary' || !selectedId) return;
+    let active = true;
+    async function load() {
+      setLoadingSummary(true);
+      try {
+        const data = await meetingsService.getMeetingSummary(selectedId);
+        if (active) setSummaryData(data);
+      } catch { if (active) setSummaryData(null); }
+      finally { if (active) setLoadingSummary(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
+
+  useEffect(() => {
+    if (activeTab !== 'minutes' || !selectedId) return;
+    let active = true;
+    async function load() {
+      setLoadingMomData(true);
+      try {
+        const data = await meetingsService.getMeetingMoM(selectedId);
+        if (active) setMomData(data);
+      } catch { if (active) setMomData(null); }
+      finally { if (active) setLoadingMomData(false); }
     }
     load();
     return () => { active = false; };
@@ -136,7 +169,6 @@ export default function MeetingsPage() {
       const updated = await meetingsService.uploadMOM(selectedMeeting.id, momText);
       updateMeeting(selectedMeeting.id, { momText: updated.mom_summary || momText, mom_summary: updated.mom_summary });
       setMomText('');
-      // Reload meeting to get analysis
       const full = await meetingsService.getMeeting(selectedMeeting.id);
       updateMeeting(selectedMeeting.id, {
         mom_executive_summary: full.mom_executive_summary,
@@ -235,6 +267,35 @@ export default function MeetingsPage() {
     setSelectedTaskIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  const handleUploadTranscript = async () => {
+    if (!selectedMeeting || !transcriptText.trim()) return;
+    setUploadingTranscript(true);
+    try {
+      const updated = await meetingsService.uploadTranscript(selectedMeeting.id, transcriptText);
+      updateMeeting(selectedMeeting.id, { transcript: updated.transcript, analysis_status: updated.analysis_status });
+      setTranscriptText('');
+    } catch (err) { console.error('Failed to upload transcript:', err); }
+    finally { setUploadingTranscript(false); }
+  };
+
+  const handleAnalyzeTranscript = async () => {
+    if (!selectedMeeting) return;
+    setActionLoading('analyze');
+    try {
+      const updated = await meetingsService.analyzeMeeting(selectedMeeting.id);
+      updateMeeting(selectedMeeting.id, {
+        ai_summary: updated.ai_summary,
+        minutes_of_meeting: updated.minutes_of_meeting,
+        analysis_status: updated.analysis_status,
+        mom_executive_summary: updated.mom_executive_summary,
+        mom_decisions: updated.mom_decisions,
+        mom_risks: updated.mom_risks,
+        mom_blockers: updated.mom_blockers,
+      });
+    } catch (err) { console.error('Failed to analyze meeting:', err); }
+    finally { setActionLoading(null); }
+  };
+
   const getMeetingIcon = (type: string) => {
     switch (type) {
       case 'meeting': return <Video className="w-4 h-4 text-accent-blue" />;
@@ -244,11 +305,23 @@ export default function MeetingsPage() {
     }
   };
 
+  const getAnalysisStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'uploaded': return <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-accent-blue/10 border border-accent-blue/30 text-accent-blue">Uploaded</span>;
+      case 'processing': return <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-accent-orange/10 border border-accent-orange/30 text-accent-orange">Processing</span>;
+      case 'completed': return <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-accent-green/10 border border-accent-green/30 text-accent-green">Completed</span>;
+      case 'failed': return <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-accent-red/10 border border-accent-red/30 text-accent-red">Failed</span>;
+      default: return null;
+    }
+  };
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'info', label: 'Info', icon: <FileText className="w-3.5 h-3.5" /> },
     { key: 'participants', label: 'Participants', icon: <Users className="w-3.5 h-3.5" /> },
     { key: 'timeline', label: 'Timeline', icon: <History className="w-3.5 h-3.5" /> },
-    { key: 'mom', label: 'MOM', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { key: 'transcript', label: 'Transcript', icon: <MessageSquare className="w-3.5 h-3.5" /> },
+    { key: 'summary', label: 'Summary', icon: <BrainCircuit className="w-3.5 h-3.5" /> },
+    { key: 'minutes', label: 'Minutes', icon: <BookOpen className="w-3.5 h-3.5" /> },
     { key: 'tasks', label: 'Tasks', icon: <ListChecks className="w-3.5 h-3.5" /> },
   ];
 
@@ -316,6 +389,7 @@ export default function MeetingsPage() {
                   <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-text-muted" /> {meet.date}</span>
                   <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-text-muted" /> {meet.time}</span>
                   {meet.status && <span className={cn("text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border", meet.status === 'completed' ? "bg-accent-green/10 border-accent-green/30 text-accent-green" : meet.status === 'cancelled' ? "bg-accent-red/10 border-accent-red/30 text-accent-red" : "bg-accent-blue/10 border-accent-blue/30 text-accent-blue")}>{meet.status}</span>}
+                  {meet.analysis_status && getAnalysisStatusBadge(meet.analysis_status)}
                 </div>
               </div>
             );
@@ -334,6 +408,7 @@ export default function MeetingsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] uppercase font-bold tracking-wider bg-background-primary border border-border-subtle px-2 py-0.5 rounded text-text-secondary">ID: {selectedMeeting.id}</span>
                     {selectedMeeting.status && <span className={cn("text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border", selectedMeeting.status === 'completed' ? "bg-accent-green/10 border-accent-green/30 text-accent-green" : selectedMeeting.status === 'cancelled' ? "bg-accent-red/10 border-accent-red/30 text-accent-red" : "bg-accent-blue/10 border-accent-blue/30 text-accent-blue")}>{selectedMeeting.status.replace('_', ' ')}</span>}
+                    {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
                   </div>
                   <h2 className="text-base font-bold font-sans mt-2">{selectedMeeting.title}</h2>
                   {selectedMeeting.owner_name && <p className="text-[11px] text-text-muted">Hosted by {selectedMeeting.owner_name}</p>}
@@ -464,41 +539,71 @@ export default function MeetingsPage() {
               </div>
             )}
 
-            {activeTab === 'mom' && (
+            {activeTab === 'transcript' && (
               <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
-                <h4 className="text-sm font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-accent-blue" /> Minutes of Meeting</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold flex items-center gap-2"><MessageSquare className="w-4 h-4 text-text-secondary" /> Meeting Transcript</h4>
+                  {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
+                </div>
 
-                {/* MOM Upload */}
+                {selectedMeeting.transcript && (
+                  <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-2">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Transcript</span>
+                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">{selectedMeeting.transcript}</p>
+                  </div>
+                )}
+
                 <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-3">
-                  <Textarea placeholder="Paste or type meeting minutes here..." className="w-full h-24 resize-none bg-transparent border-none text-xs" value={momText} onChange={(e) => setMomText(e.target.value)} />
+                  <Textarea placeholder="Paste or type meeting transcript here..." className="w-full h-32 resize-none bg-transparent border-none text-xs" value={transcriptText} onChange={(e) => setTranscriptText(e.target.value)} />
                   <div className="flex gap-2">
-                    <button onClick={handleUploadMoM} disabled={!momText.trim() || actionLoading === 'mom'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                      {actionLoading === 'mom' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload MOM
+                    <button onClick={handleUploadTranscript} disabled={!transcriptText.trim() || uploadingTranscript} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                      {uploadingTranscript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload Transcript
                     </button>
-                    {selectedMeeting.mom_summary && (
-                      <button onClick={handleAnalyzeMom} disabled={analyzingMom} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                        {analyzingMom ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Analyze MOM
+                    {(selectedMeeting.transcript || selectedMeeting.mom_summary) && (
+                      <button onClick={handleAnalyzeTranscript} disabled={actionLoading === 'analyze'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {actionLoading === 'analyze' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Analyze Meeting
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* Saved MOM Summary */}
-                {selectedMeeting.mom_summary && (
-                  <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-2">
-                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Summary</span>
-                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{selectedMeeting.mom_summary}</p>
+                {!selectedMeeting.transcript && !transcriptText && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <MessageSquare className="w-8 h-8 text-border-subtle animate-pulse" />
+                    <p className="text-[11px] leading-relaxed">No transcript uploaded yet. Paste the meeting transcript above and click Upload.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'summary' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold flex items-center gap-2"><BrainCircuit className="w-4 h-4 text-accent-blue" /> AI Executive Summary</h4>
+                  {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
+                </div>
+
+                {loadingSummary ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : summaryData?.summary ? (
+                  <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20 space-y-3">
+                    <span className="text-[10px] font-bold text-accent-blue uppercase block">Executive Summary</span>
+                    <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{summaryData.summary}</p>
+                  </div>
+                ) : selectedMeeting.ai_summary || selectedMeeting.mom_executive_summary ? (
+                  <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20 space-y-3">
+                    <span className="text-[10px] font-bold text-accent-blue uppercase block">Executive Summary</span>
+                    <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{selectedMeeting.ai_summary || selectedMeeting.mom_executive_summary}</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <BrainCircuit className="w-8 h-8 text-border-subtle animate-pulse" />
+                    <p className="text-[11px] leading-relaxed">No summary available. Upload a transcript or MOM, then run analysis.</p>
                   </div>
                 )}
 
-                {/* AI Analysis Results */}
-                {selectedMeeting.mom_executive_summary && (
+                {selectedMeeting.mom_executive_summary && selectedMeeting.mom_executive_summary !== summaryData?.summary && (
                   <div className="space-y-3">
-                    <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
-                      <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1">Executive Summary</span>
-                      <p className="text-xs text-text-secondary leading-relaxed">{selectedMeeting.mom_executive_summary}</p>
-                    </div>
-
                     {Array.isArray(selectedMeeting.mom_decisions) && selectedMeeting.mom_decisions.length > 0 && (
                       <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
                         <span className="text-[10px] font-bold text-accent-green uppercase block mb-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Decisions</span>
@@ -528,10 +633,112 @@ export default function MeetingsPage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
 
-                {!selectedMeeting.mom_summary && !momText && (
+            {activeTab === 'minutes' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold flex items-center gap-2"><BookOpen className="w-4 h-4 text-accent-blue" /> Minutes of Meeting</h4>
+                  {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
+                </div>
+
+                <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-3">
+                  <Textarea placeholder="Paste or type meeting minutes here..." className="w-full h-24 resize-none bg-transparent border-none text-xs" value={momText} onChange={(e) => setMomText(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button onClick={handleUploadMoM} disabled={!momText.trim() || actionLoading === 'mom'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                      {actionLoading === 'mom' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload MOM
+                    </button>
+                    {selectedMeeting.mom_summary && (
+                      <button onClick={handleAnalyzeMom} disabled={analyzingMom} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {analyzingMom ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Analyze MOM
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {selectedMeeting.mom_summary && (
+                  <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-2">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Summary</span>
+                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{selectedMeeting.mom_summary}</p>
+                  </div>
+                )}
+
+                {loadingMomData ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : momData?.mom ? (
+                  <div className="space-y-3">
+                    {momData.mom.summary && (
+                      <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
+                        <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1">Summary</span>
+                        <p className="text-xs text-text-secondary leading-relaxed">{momData.mom.summary}</p>
+                      </div>
+                    )}
+                    {Array.isArray(momData.mom.key_points) && momData.mom.key_points.length > 0 && (
+                      <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
+                        <span className="text-[10px] font-bold text-accent-green uppercase block mb-1">Key Points</span>
+                        <ul className="space-y-1">{momData.mom.key_points.map((p: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {p}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(momData.mom.decisions) && momData.mom.decisions.length > 0 && (
+                      <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
+                        <span className="text-[10px] font-bold text-accent-green uppercase block mb-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Decisions</span>
+                        <ul className="space-y-1">{momData.mom.decisions.map((d: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(momData.mom.action_items) && momData.mom.action_items.length > 0 && (
+                      <div className="bg-accent-orange/5 p-4 rounded border border-accent-orange/20">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase block mb-1 flex items-center gap-1"><ListChecks className="w-3 h-3" /> Action Items</span>
+                        <ul className="space-y-1">{momData.mom.action_items.map((a: any, i: number) => <li key={i} className="text-xs text-text-secondary">• {a.title}{a.suggested_owner ? ` (${a.suggested_owner})` : ''}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(momData.mom.risks) && momData.mom.risks.length > 0 && (
+                      <div className="bg-accent-red/5 p-4 rounded border border-accent-red/20">
+                        <span className="text-[10px] font-bold text-accent-red uppercase block mb-1 flex items-center gap-1"><Shield className="w-3 h-3" /> Risks</span>
+                        <ul className="space-y-1">{momData.mom.risks.map((r: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {r}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(momData.mom.blockers) && momData.mom.blockers.length > 0 && (
+                      <div className="bg-accent-orange/5 p-4 rounded border border-accent-orange/20">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase block mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Blockers</span>
+                        <ul className="space-y-1">{momData.mom.blockers.map((b: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {b}</li>)}</ul>
+                      </div>
+                    )}
+                  </div>
+                ) : selectedMeeting.mom_executive_summary ? (
+                  <div className="space-y-3">
+                    <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
+                      <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1">Executive Summary</span>
+                      <p className="text-xs text-text-secondary leading-relaxed">{selectedMeeting.mom_executive_summary}</p>
+                    </div>
+                    {Array.isArray(selectedMeeting.mom_decisions) && selectedMeeting.mom_decisions.length > 0 && (
+                      <div className="bg-accent-green/5 p-4 rounded border border-accent-green/20">
+                        <span className="text-[10px] font-bold text-accent-green uppercase block mb-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Decisions</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_decisions.map((d: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(selectedMeeting.mom_risks) && selectedMeeting.mom_risks.length > 0 && (
+                      <div className="bg-accent-red/5 p-4 rounded border border-accent-red/20">
+                        <span className="text-[10px] font-bold text-accent-red uppercase block mb-1 flex items-center gap-1"><Shield className="w-3 h-3" /> Risks</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_risks.map((r: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {r}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(selectedMeeting.mom_blockers) && selectedMeeting.mom_blockers.length > 0 && (
+                      <div className="bg-accent-orange/5 p-4 rounded border border-accent-orange/20">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase block mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Blockers</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_blockers.map((b: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {b}</li>)}</ul>
+                      </div>
+                    )}
+                    {Array.isArray(selectedMeeting.mom_followups) && selectedMeeting.mom_followups.length > 0 && (
+                      <div className="bg-accent-blue/5 p-4 rounded border border-accent-blue/20">
+                        <span className="text-[10px] font-bold text-accent-blue uppercase block mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Follow-ups</span>
+                        <ul className="space-y-1">{selectedMeeting.mom_followups.map((f: string, i: number) => <li key={i} className="text-xs text-text-secondary">• {f}</li>)}</ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
-                    <Sparkles className="w-8 h-8 text-border-subtle animate-pulse" />
+                    <BookOpen className="w-8 h-8 text-border-subtle animate-pulse" />
                     <p className="text-[11px] leading-relaxed">No MOM uploaded yet. Paste meeting minutes above and click Upload MOM.</p>
                   </div>
                 )}
@@ -559,7 +766,7 @@ export default function MeetingsPage() {
                 ) : extractedTasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
                     <ClipboardList className="w-8 h-8 text-border-subtle" />
-                    <p className="text-[11px]">No extracted tasks. Upload MOM first, then extract tasks.</p>
+                    <p className="text-[11px]">No extracted tasks. Upload transcript or MOM first, then analyze.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

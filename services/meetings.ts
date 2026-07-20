@@ -64,6 +64,11 @@ function mapMeeting(m: any): Meeting {
     mom_followups: parseJsonArray(m.mom_followups),
     mom_deadlines: parseJsonArray(m.mom_deadlines),
     mom_important_dates: parseJsonArray(m.mom_important_dates),
+    transcript: m.transcript,
+    ai_summary: m.ai_summary,
+    minutes_of_meeting: m.minutes_of_meeting,
+    analysis_status: m.analysis_status,
+    metadata_json: m.metadata_json,
     timeline: m.timeline?.map((t: any) => ({
       id: t.id?.toString() || '',
       meeting_id: t.meeting_id?.toString() || '',
@@ -132,11 +137,6 @@ export const meetingsService = {
     if (!res.ok) throw new Error('Failed to fetch meeting');
     const json = await res.json();
     return mapMeeting(json.data);
-  },
-
-  getMeetingSummary: async (title: string): Promise<string> => {
-    await new Promise(r => setTimeout(r, 1500));
-    return `AI Summary generated for: ${title}\n\n- Discussed key strategic deliverables.\n- Aligned on Q4 milestones and resource allocation.\n- Next Steps: Review finalizing budget next week.`;
   },
 
   createMeeting: async (meeting: Partial<Meeting> & { participant_ids?: number[] }): Promise<Meeting> => {
@@ -347,5 +347,40 @@ export const meetingsService = {
       headers: getHeaders()
     });
     if (!res.ok) throw new Error('Failed to remove participant');
+  },
+
+  uploadTranscript: async (id: number | string, transcript: string): Promise<Meeting> => {
+    const res = await fetch(`/api/v1/meetings/${id}/transcript`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ transcript })
+    });
+    if (!res.ok) throw new Error('Failed to upload transcript');
+    const json = await res.json();
+    return mapMeeting(json.data);
+  },
+
+  analyzeMeeting: async (id: number | string): Promise<Meeting> => {
+    const res = await fetch(`/api/v1/meetings/${id}/analyze`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to analyze meeting');
+    const json = await res.json();
+    return mapMeeting(json.data);
+  },
+
+  getMeetingSummary: async (id: number | string): Promise<{ summary: string | null; analysis_status: string | null }> => {
+    const res = await fetch(`/api/v1/meetings/${id}/summary`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch meeting summary');
+    const json = await res.json();
+    return json.data;
+  },
+
+  getMeetingMoM: async (id: number | string): Promise<{ mom: any; mom_summary: string | null; analysis_status: string | null }> => {
+    const res = await fetch(`/api/v1/meetings/${id}/mom`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch meeting MoM');
+    const json = await res.json();
+    return json.data;
   },
 };
