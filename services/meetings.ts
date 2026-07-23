@@ -139,12 +139,21 @@ export const meetingsService = {
     return mapMeeting(json.data);
   },
 
-  createMeeting: async (meeting: Partial<Meeting> & { participant_ids?: number[] }): Promise<Meeting> => {
+  createMeeting: async (meeting: Partial<Meeting> & { participant_ids?: number[], end_time?: string }): Promise<Meeting> => {
+    let computed_end_time = undefined;
+    if (meeting.time) {
+      try {
+        const parts = meeting.time.split(':');
+        const endH = (parseInt(parts[0]) + 1).toString().padStart(2, '0');
+        computed_end_time = `${endH}:${parts[1] || '00'}`;
+      } catch(e) {}
+    }
     const payload = {
       title: meeting.title,
       description: meeting.notes,
       date: meeting.date,
       start_time: meeting.time,
+      end_time: meeting.end_time || computed_end_time,
       type: meeting.type || 'meeting',
       agenda: meeting.agenda,
       meeting_link: meeting.meeting_link,
@@ -159,8 +168,10 @@ export const meetingsService = {
       headers: getHeaders(),
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Failed to create event');
     const json = await res.json();
+    if (!res.ok) {
+        throw json;
+    }
     return mapMeeting(json.data);
   },
 

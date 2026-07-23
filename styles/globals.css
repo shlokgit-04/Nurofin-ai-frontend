@@ -19,6 +19,11 @@ body {
   font-size: 15.4px; /* Zoomed by 10% from 14px */
   overflow-x: hidden;
   height: 100%;
+  text-transform: capitalize;
+}
+
+input, textarea, select, code, pre {
+  text-transform: none;
 }
 
 a {

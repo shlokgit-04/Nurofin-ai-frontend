@@ -59,6 +59,8 @@ export default function PlannerPage() {
   const [newEventStartTime, setNewEventStartTime] = useState('10:00');
   const [newEventType, setNewEventType] = useState('meeting');
   const [newEventOpen, setNewEventOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<{message: string, alternative_times: any[]} | null>(null);
+  const [newEventParticipantIds, setNewEventParticipantIds] = useState<number[]>([]);
   
   // Task Form State
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -108,12 +110,12 @@ export default function PlannerPage() {
       const data = await plannerService.getSchedule(selectedUserId, startStr, endStr);
       setScheduleEvents(data.schedule || []);
 
-      if (selectedUserId === currentUserId) {
-        const localData = await meetingsService.getMeetings();
-        setLocalEvents(localData);
-      } else {
-        setLocalEvents([]);
-      }
+      const localData = await meetingsService.getMeetings();
+      const filteredLocalData = localData.filter(m => 
+        m.owner_id === selectedUserId || 
+        (m.participants && m.participants.some(p => p.user_id === selectedUserId))
+      );
+      setLocalEvents(filteredLocalData);
     } catch (error) {
       console.error('Failed to load schedule:', error);
     } finally {
@@ -160,18 +162,24 @@ export default function PlannerPage() {
     e.preventDefault();
     if (!newEventTitle) return;
     try {
+      setConflictData(null);
       const newEvent = await meetingsService.createMeeting({
         title: newEventTitle,
         date: newEventDate,
         time: newEventStartTime,
-        type: newEventType
+        type: newEventType,
+        participant_ids: newEventParticipantIds
       });
       setLocalEvents([...localEvents, newEvent]);
       setNewEventTitle('');
       setNewEventOpen(false);
       loadSchedule();
-    } catch (error) {
-      console.error('Failed to create event:', error);
+    } catch (error: any) {
+      if (error?.detail?.alternative_times) {
+        setConflictData(error.detail);
+      } else {
+        console.error('Failed to create event:', error);
+      }
     }
   };
 
@@ -273,6 +281,7 @@ export default function PlannerPage() {
 
   const getEventBadge = (source: string, type: string) => {
     if (source === 'google_calendar') return 'text-[#4285F4] bg-[#4285F4]/10 border-[#4285F4]/20';
+    if (source === 'nurofin_task' || type === 'task') return 'text-accent-purple bg-accent-purple/10 border-accent-purple/20';
     switch (type) {
       case 'meeting': return 'text-accent-blue bg-accent-blue/10 border-accent-blue/20';
       case 'event': return 'text-accent-green bg-accent-green/10 border-accent-green/20';
@@ -283,6 +292,7 @@ export default function PlannerPage() {
 
   const getEventIcon = (source: string, type: string) => {
     if (source === 'google_calendar') return <Globe className="w-3.5 h-3.5 text-[#4285F4]" />;
+    if (source === 'nurofin_task' || type === 'task') return <Briefcase className="w-3.5 h-3.5 text-accent-purple" />;
     switch (type) {
       case 'meeting': return <Video className="w-3.5 h-3.5 text-accent-blue" />;
       case 'event': return <CalendarDays className="w-3.5 h-3.5 text-accent-green" />;
@@ -431,7 +441,7 @@ export default function PlannerPage() {
                   )}>
                     {user.full_name}
                   </p>
-                  <p className="text-[10px] text-text-muted truncate">{user.role || 'Member'}</p>
+                  <p className="text-[10px] text-text-muted truncate capitalize">{user.role || 'Member'}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {user.google_connected && (
@@ -480,16 +490,14 @@ export default function PlannerPage() {
           </div>
           <div className="flex items-center gap-3">
             {activeTab === 'tasks' ? (
-               isAdmin && (
-                 <motion.button
-                   whileHover={{ scale: 1.05 }}
-                   whileTap={{ scale: 0.95 }}
-                   onClick={() => setNewTaskOpen(!newTaskOpen)}
-                   className="flex items-center gap-2 px-4 py-2 bg-accent-purple hover:bg-accent-purple-hover text-white text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition-all"
-                 >
-                   <Briefcase className="w-4 h-4" /> Assign Task
-                 </motion.button>
-               )
+              (isAdmin || isOwnSchedule) && (
+                <button 
+                  onClick={() => setNewTaskOpen(!newTaskOpen)}
+                  className="h-8 px-3 rounded flex items-center gap-1.5 bg-accent-purple text-white text-xs font-semibold hover:bg-accent-purple/90 transition-colors shadow-sm"
+                >
+                  <Briefcase className="w-4 h-4" /> Assign Task
+                </button>
+              )
             ) : (
               isOwnSchedule && (
                 <motion.button
@@ -513,8 +521,37 @@ export default function PlannerPage() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               onSubmit={handleAddEvent} 
-              className="bg-surface-card border-b border-border-subtle p-5 grid grid-cols-1 sm:grid-cols-6 gap-4 items-end text-xs shadow-inner overflow-hidden z-0"
+              className="bg-surface-card border-b border-border-subtle p-5 grid grid-cols-1 sm:grid-cols-6 gap-4 items-start text-xs shadow-inner overflow-hidden z-0"
             >
+              {conflictData && (
+                <div className="sm:col-span-6 bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 mb-2">
+                  <div className="flex items-start gap-2 text-accent-red mb-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <p className="font-semibold text-xs leading-relaxed">{conflictData.message}</p>
+                  </div>
+                  {conflictData.alternative_times && conflictData.alternative_times.length > 0 && (
+                    <div className="space-y-1.5 mt-2 pl-6">
+                      <p className="text-[10px] font-bold text-text-secondary uppercase">Suggested Alternative Times:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {conflictData.alternative_times.map((alt: any, idx: number) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setNewEventDate(alt.date);
+                              setNewEventStartTime(alt.start_time);
+                              setConflictData(null);
+                            }}
+                            className="px-2 py-1 bg-background-primary border border-border-subtle hover:border-accent-blue rounded text-xs transition-colors"
+                          >
+                            {alt.date} at {alt.start_time}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Event Title</label>
                 <input
@@ -525,7 +562,7 @@ export default function PlannerPage() {
                   className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-1">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Date</label>
                 <input
                   type="date"
@@ -534,7 +571,7 @@ export default function PlannerPage() {
                   className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-1">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Start Time</label>
                 <input
                   type="time"
@@ -543,7 +580,7 @@ export default function PlannerPage() {
                   className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Event Type</label>
                 <select
                   value={newEventType}
@@ -555,17 +592,40 @@ export default function PlannerPage() {
                   <option value="event">Event</option>
                 </select>
               </div>
-              <div className="flex gap-2 justify-end h-10 items-center">
+              <div className="space-y-1.5 sm:col-span-6">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Participants</label>
+                <div className="w-full bg-background-primary border border-border-subtle rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
+                  {teammates.map(user => (
+                    <label key={user.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-hover p-1 rounded">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue"
+                        checked={newEventParticipantIds.includes(user.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewEventParticipantIds([...newEventParticipantIds, user.id]);
+                          } else {
+                            setNewEventParticipantIds(newEventParticipantIds.filter(id => id !== user.id));
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-text-primary">{user.full_name}</span>
+                    </label>
+                  ))}
+                  {teammates.length === 0 && <span className="text-xs text-text-muted italic px-1">No teammates found</span>}
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end h-10 items-center sm:col-span-6 mt-2 border-t border-border-subtle pt-4">
                 <button
                   type="button"
                   onClick={() => setNewEventOpen(false)}
-                  className="px-4 h-full text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all"
+                  className="px-4 h-10 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 h-full bg-accent-green hover:bg-accent-green-light text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                  className="px-6 h-10 bg-accent-green hover:bg-accent-green-light text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                 >
                   Save Event
                 </button>
@@ -580,7 +640,7 @@ export default function PlannerPage() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               onSubmit={handleAddTask} 
-              className="bg-surface-card border-b border-border-subtle p-5 grid grid-cols-1 sm:grid-cols-6 gap-4 items-end text-xs shadow-inner overflow-hidden z-0"
+              className="bg-surface-card border-b border-border-subtle p-5 grid grid-cols-1 sm:grid-cols-6 gap-4 items-start text-xs shadow-inner overflow-hidden z-0"
             >
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Task Title</label>
@@ -727,7 +787,7 @@ export default function PlannerPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={cn("text-[10px] uppercase font-bold border px-2.5 py-1 rounded-md shadow-sm", getEventBadge(evt.source, evt.type))}>
-                          {evt.source === 'google_calendar' ? 'Google' : evt.type}
+                          {evt.source === 'google_calendar' ? 'Google' : evt.source === 'nurofin_task' ? 'Task' : evt.type}
                         </span>
                         {evt.source === 'nurofin' && isOwnSchedule && evt.id && (
                           <button onClick={() => handleDeleteEvent(evt.id)} className="text-text-muted hover:text-accent-orange transition-colors bg-surface-hover p-1.5 rounded-md opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0">
@@ -853,7 +913,7 @@ export default function PlannerPage() {
                                 )}
                               </span>
                               <span className={cn("text-[9px] uppercase font-bold border px-1.5 py-0.5 rounded shadow-sm", getEventBadge(e.source, e.type))}>
-                                {e.source === 'google_calendar' ? 'Google' : e.type}
+                                {e.source === 'google_calendar' ? 'Google' : e.source === 'nurofin_task' ? 'Task' : e.type}
                               </span>
                             </div>
                             {e.source === 'nurofin' && isOwnSchedule && e.id && (

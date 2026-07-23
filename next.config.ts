@@ -3,8 +3,10 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || "http://127.0.0.1:8001";
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig: NextConfig = {
-  output: "export",
+  ...(isProd ? { output: "export" } : {}),
   images: {
     unoptimized: true,
   },

@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { Meeting, MeetingTimelineEvent, MeetingExtractedTask } from '@/types';
 import { meetingsService } from '@/services/meetings';
+import { plannerService } from '@/services/planner';
 import {
   Users, Clock, Calendar, Video, MapPin, Sparkles, FileText, Plus, Loader2,
   Save, AlertCircle, Check, X, Upload, UserPlus, Trash2, Link2, Globe,
@@ -29,7 +30,7 @@ type MeetingFormValues = z.infer<typeof meetingSchema>;
 type Tab = 'info' | 'participants' | 'timeline' | 'transcript' | 'summary' | 'minutes' | 'tasks';
 
 export default function MeetingsPage() {
-  const { meetings, setMeetings, addMeeting, updateMeeting } = useStore();
+  const { meetings, setMeetings, addMeeting, updateMeeting, userProfile } = useStore();
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +60,11 @@ export default function MeetingsPage() {
   const [loadingMomData, setLoadingMomData] = useState(false);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<{message: string, alternative_times: any[]} | null>(null);
+  const [users, setUsers] = useState<{id: number, full_name: string}[]>([]);
+  const [newEventParticipantIds, setNewEventParticipantIds] = useState<number[]>([]);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<MeetingFormValues>({
+  const { register, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
     defaultValues: { date: new Date().toISOString().split('T')[0], time: '10:00', type: 'meeting' }
   });
@@ -89,6 +93,16 @@ export default function MeetingsPage() {
     loadMeetings();
     return () => { active = false; };
   }, [setMeetings, filter, search]);
+
+  useEffect(() => {
+    async function loadUsers() {
+      try {
+        const data = await plannerService.getUsers();
+        setUsers(data);
+      } catch (err) { console.error('Failed to load users:', err); }
+    }
+    loadUsers();
+  }, []);
 
   const selectedMeeting = meetings.find(m => m.id === selectedId);
 
@@ -154,12 +168,26 @@ export default function MeetingsPage() {
 
   const onSubmit = async (data: MeetingFormValues) => {
     try {
-      const created = await meetingsService.createMeeting({ title: data.title, date: data.date, time: data.time, type: data.type });
+      setConflictData(null);
+      const created = await meetingsService.createMeeting({ 
+        title: data.title, 
+        date: data.date, 
+        time: data.time, 
+        type: data.type,
+        participant_ids: newEventParticipantIds
+      });
       addMeeting(created);
       setSelectedId(created.id);
       setCreateModalOpen(false);
       reset();
-    } catch (err) { console.error(err); }
+      setNewEventParticipantIds([]);
+    } catch (err: any) { 
+      if (err?.detail?.alternative_times) {
+        setConflictData(err.detail);
+      } else {
+        console.error(err); 
+      }
+    }
   };
 
   const handleUploadMoM = async () => {
@@ -203,7 +231,7 @@ export default function MeetingsPage() {
     try {
       await meetingsService.acceptMeeting(selectedMeeting.id);
       const updatedParticipants = (selectedMeeting.participants || []).map(p =>
-        p.status === 'pending' ? { ...p, status: 'accepted' as const } : p
+        p.user_id === userProfile?.id ? { ...p, status: 'accepted' as const } : p
       );
       updateMeeting(selectedMeeting.id, { participants: updatedParticipants });
     } catch (err) { console.error(err); }
@@ -216,7 +244,7 @@ export default function MeetingsPage() {
     try {
       await meetingsService.declineMeeting(selectedMeeting.id);
       const updatedParticipants = (selectedMeeting.participants || []).map(p =>
-        p.status === 'pending' ? { ...p, status: 'declined' as const } : p
+        p.user_id === userProfile?.id ? { ...p, status: 'declined' as const } : p
       );
       updateMeeting(selectedMeeting.id, { participants: updatedParticipants });
     } catch (err) { console.error(err); }
@@ -414,15 +442,21 @@ export default function MeetingsPage() {
                   {selectedMeeting.owner_name && <p className="text-[11px] text-text-muted">Hosted by {selectedMeeting.owner_name}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={handleAccept} disabled={actionLoading === 'accept'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-green hover:bg-accent-green/80 text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                    {actionLoading === 'accept' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Accept
-                  </button>
-                  <button onClick={handleDecline} disabled={actionLoading === 'decline'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red/80 hover:bg-accent-red text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                    {actionLoading === 'decline' ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} Decline
-                  </button>
-                  <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 border border-accent-red/30 text-accent-red hover:bg-accent-red/10 text-xs font-semibold rounded-md transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {selectedMeeting?.participants?.find(p => p.user_id === userProfile?.id)?.status === 'pending' && (
+                    <>
+                      <button onClick={handleAccept} disabled={actionLoading === 'accept'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-green hover:bg-accent-green/80 text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {actionLoading === 'accept' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Accept
+                      </button>
+                      <button onClick={handleDecline} disabled={actionLoading === 'decline'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red/80 hover:bg-accent-red text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {actionLoading === 'decline' ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} Decline
+                      </button>
+                    </>
+                  )}
+                  {selectedMeeting?.owner_id === userProfile?.id && (
+                    <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 border border-accent-red/30 text-accent-red hover:bg-accent-red/10 text-xs font-semibold rounded-md transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -809,6 +843,35 @@ export default function MeetingsPage() {
             <DialogDescription>Create a new meeting event and send invites to the team.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2 text-xs font-sans">
+            {conflictData && (
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-accent-red mb-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <p className="font-semibold text-xs leading-relaxed">{conflictData.message}</p>
+                </div>
+                {conflictData.alternative_times && conflictData.alternative_times.length > 0 && (
+                  <div className="space-y-1.5 mt-2 pl-6">
+                    <p className="text-[10px] font-bold text-text-secondary uppercase">Suggested Alternative Times:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {conflictData.alternative_times.map((alt: any, idx: number) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setValue('date', alt.date);
+                            setValue('time', alt.start_time);
+                            setConflictData(null);
+                          }}
+                          className="px-2 py-1 bg-background-primary border border-border-subtle hover:border-accent-blue rounded text-xs transition-colors"
+                        >
+                          {alt.date} at {alt.start_time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-2xs font-bold text-text-secondary uppercase">Meeting Title</label>
               <Input type="text" placeholder="Q3 Planning Sync" {...register('title')} className={errors.title ? 'border-accent-red' : ''} />
@@ -831,6 +894,29 @@ export default function MeetingsPage() {
                 <option value="event">Event (In-Person)</option>
                 <option value="reminder">Reminder</option>
               </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-2xs font-bold text-text-secondary uppercase">Participants</label>
+              <div className="w-full bg-background-secondary border border-border-subtle rounded-md p-2 max-h-32 overflow-y-auto space-y-1">
+                {users.map(user => (
+                  <label key={user.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-hover p-1 rounded">
+                    <input
+                      type="checkbox"
+                      className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue"
+                      checked={newEventParticipantIds.includes(user.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewEventParticipantIds([...newEventParticipantIds, user.id]);
+                        } else {
+                          setNewEventParticipantIds(newEventParticipantIds.filter(id => id !== user.id));
+                        }
+                      }}
+                    />
+                    <span className="text-xs text-text-primary">{user.full_name}</span>
+                  </label>
+                ))}
+                {users.length === 0 && <span className="text-xs text-text-muted italic px-1">No users found</span>}
+              </div>
             </div>
             <DialogFooter className="pt-2">
               <button type="button" onClick={() => setCreateModalOpen(false)} className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-2xs font-semibold rounded transition-all">Cancel</button>
