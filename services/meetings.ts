@@ -311,7 +311,7 @@ export const meetingsService = {
   },
 
   approveExtractedTasks: async (id: number | string, taskIds: number[]): Promise<void> => {
-    const res = await fetch(`/api/v1/meetings/${id}/approve`, {
+    const res = await fetch(`/api/v1/meetings/${id}/extracted-tasks/bulk-approve`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ task_ids: taskIds })
@@ -320,7 +320,7 @@ export const meetingsService = {
   },
 
   rejectExtractedTasks: async (id: number | string, taskIds: number[]): Promise<void> => {
-    const res = await fetch(`/api/v1/meetings/${id}/reject`, {
+    const res = await fetch(`/api/v1/meetings/${id}/extracted-tasks/bulk-reject`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ task_ids: taskIds })
@@ -329,17 +329,25 @@ export const meetingsService = {
   },
 
   bulkApprove: async (id: number | string): Promise<void> => {
-    const res = await fetch(`/api/v1/meetings/${id}/bulk-approve`, {
+    const tasks = await meetingsService.getExtractedTasks(id);
+    const pendingIds = tasks.filter(t => t.status === 'pending').map(t => parseInt(t.id));
+    if (pendingIds.length === 0) return;
+    const res = await fetch(`/api/v1/meetings/${id}/extracted-tasks/bulk-approve`, {
       method: 'POST',
-      headers: getHeaders()
+      headers: getHeaders(),
+      body: JSON.stringify({ task_ids: pendingIds })
     });
     if (!res.ok) throw new Error('Failed to bulk approve');
   },
 
   bulkReject: async (id: number | string): Promise<void> => {
-    const res = await fetch(`/api/v1/meetings/${id}/bulk-reject`, {
+    const tasks = await meetingsService.getExtractedTasks(id);
+    const pendingIds = tasks.filter(t => t.status === 'pending').map(t => parseInt(t.id));
+    if (pendingIds.length === 0) return;
+    const res = await fetch(`/api/v1/meetings/${id}/extracted-tasks/bulk-reject`, {
       method: 'POST',
-      headers: getHeaders()
+      headers: getHeaders(),
+      body: JSON.stringify({ task_ids: pendingIds })
     });
     if (!res.ok) throw new Error('Failed to bulk reject');
   },
@@ -353,8 +361,8 @@ export const meetingsService = {
   },
 
   removeParticipant: async (meetingId: number | string, userId: number | string): Promise<void> => {
-    const res = await fetch(`/api/v1/meetings/${meetingId}/participants/${userId}`, {
-      method: 'DELETE',
+    const res = await fetch(`/api/v1/meetings/${meetingId}/participants/remove?user_id=${userId}`, {
+      method: 'POST',
       headers: getHeaders()
     });
     if (!res.ok) throw new Error('Failed to remove participant');
