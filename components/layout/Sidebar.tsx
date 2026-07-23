@@ -18,7 +18,8 @@ import {
   UserCircle,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
@@ -56,6 +57,7 @@ const navSections: NavSection[] = [
     title: 'System Control',
     items: [
       { label: 'Finance', href: '/finance', icon: DollarSign },
+      { label: 'Team Chat', href: '/team-chat', icon: MessageSquare },
       { label: 'AI Assistant', href: '/chat', icon: BrainCircuit },
       { label: 'Notifications', href: '/notifications', icon: Bell },
       { label: 'Account Settings', href: '/profile', icon: UserCircle },
