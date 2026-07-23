@@ -40,7 +40,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
       { label: 'Projects', href: '/projects', icon: Briefcase },
-      { label: 'Work Center', href: '/tasks', icon: CheckSquare },
+      { label: 'Work Center', href: '/workcenter', icon: CheckSquare },
     ]
   },
   {
