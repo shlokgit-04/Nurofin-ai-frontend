@@ -112,8 +112,8 @@ export default function PlannerPage() {
 
       const localData = await meetingsService.getMeetings();
       const filteredLocalData = localData.filter(m => 
-        m.owner_id === selectedUserId || 
-        (m.participants && m.participants.some(p => p.user_id === selectedUserId))
+        String(m.owner_id) === String(selectedUserId) || 
+        (m.participants && m.participants.some(p => String(p.user_id) === String(selectedUserId)))
       );
       setLocalEvents(filteredLocalData);
     } catch (error) {
