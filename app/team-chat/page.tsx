@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { projectsService } from '@/services/projects';
 import { tasksService } from '@/services/tasks';
@@ -26,7 +26,7 @@ import 'stream-chat-react/dist/css/index.css';
 const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || '';
 const chatClient = apiKey ? StreamChat.getInstance(apiKey) : null;
 
-// --- New Components for Knowledge Hub & Participants ---
+// --- New Components for Document Hub & Participants ---
 
 const ParticipantSidebar = () => {
   const { channel } = useChannelStateContext();
@@ -87,7 +87,7 @@ const ParticipantSidebar = () => {
   );
 };
 
-const KnowledgeHubAction = () => {
+const DocumentHubAction = () => {
   const { channel } = useChannelStateContext();
   const [isOpen, setIsOpen] = useState(false);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
@@ -101,7 +101,7 @@ const KnowledgeHubAction = () => {
   const sendDoc = async (doc: DocumentItem) => {
     if (!channel) return;
     await channel.sendMessage({
-      text: `I've shared a document from the Knowledge Hub: **${doc.name}**`,
+      text: `I've shared a document from the Document Hub: **${doc.name}**`,
       attachments: [{
         type: 'file',
         title: doc.name,
@@ -121,7 +121,7 @@ const KnowledgeHubAction = () => {
           className="flex items-center space-x-2 text-sm text-primary hover:text-primary-hover transition-colors font-medium bg-primary/10 px-3 py-1.5 rounded-lg"
         >
           <Paperclip size={16} />
-          <span>Attach Knowledge Hub Doc</span>
+          <span>Attach Document Hub Doc</span>
         </button>
       </div>
       
@@ -131,7 +131,7 @@ const KnowledgeHubAction = () => {
             <div className="p-4 border-b border-border-subtle flex items-center justify-between">
               <h3 className="text-lg font-bold text-text-primary flex items-center">
                 <FileText className="mr-2 text-primary" size={20} />
-                Knowledge Hub
+                Document Hub
               </h3>
               <button onClick={() => setIsOpen(false)} className="text-text-muted hover:text-text-primary transition">
                 <X size={20} />
@@ -141,7 +141,7 @@ const KnowledgeHubAction = () => {
               {docs.length === 0 ? (
                 <div className="text-center py-8 text-text-muted">
                   <FileText className="mx-auto mb-3 text-text-muted opacity-50" size={32} />
-                  No documents found in Knowledge Hub.
+                  No documents found in Document Hub.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -172,6 +172,7 @@ export default function TeamChatPage() {
   const { userProfile, theme } = useStore();
   const [clientReady, setClientReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const connectingRef = useRef(false);
 
   // Task Chat State
   const [isTaskChatModalOpen, setIsTaskChatModalOpen] = useState(false);
@@ -228,11 +229,19 @@ export default function TeamChatPage() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     async function initChat() {
       if (!chatClient || !userProfile) {
         if (!apiKey) setError('Stream API Key is missing in .env.local');
         return;
       }
+
+      if (chatClient.userID || connectingRef.current) {
+        if (chatClient.userID) setClientReady(true);
+        return;
+      }
+
+      connectingRef.current = true;
 
       try {
         // 1. Fetch token from backend
@@ -249,7 +258,7 @@ export default function TeamChatPage() {
         await chatClient.connectUser(
           {
             id: user_id,
-            name: userProfile.name,
+            name: userProfile.name || userProfile.username || '',
             image: userProfile.avatar || '',
           },
           token
@@ -320,7 +329,7 @@ export default function TeamChatPage() {
           <div className="p-4 border-b border-border-subtle">
             <button
               onClick={() => setIsTaskChatModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent-purple hover:bg-accent-purple-light text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
             >
               <Briefcase className="w-4 h-4" /> Create Task Chat
             </button>
@@ -340,7 +349,7 @@ export default function TeamChatPage() {
                 <Window>
                   <ChannelHeader />
                   <MessageList />
-                  <KnowledgeHubAction />
+                  <DocumentHubAction />
                   <MessageComposer />
                 </Window>
               </div>
@@ -404,10 +413,10 @@ export default function TeamChatPage() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
+                <button 
+                  type="submit" 
                   disabled={!selectedTask}
-                  className="px-6 h-10 bg-accent-purple hover:bg-accent-purple-light text-white font-bold rounded-lg shadow-md transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 h-10 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow-md transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create Chat
                 </button>

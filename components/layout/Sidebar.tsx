@@ -36,13 +36,13 @@ interface NavSection {
   items: NavItem[];
 }
 
-const navSections: NavSection[] = [
+export const navSections: NavSection[] = [
   {
     title: 'Nuro Core',
     items: [
       { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
       { label: 'Projects', href: '/projects', icon: Briefcase },
-      { label: 'Work Center', href: '/workcenter', icon: CheckSquare },
+      { label: 'Task Center', href: '/workcenter', icon: CheckSquare },
     ]
   },
   {
@@ -50,7 +50,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Operations Calendar', href: '/planner', icon: CalendarDays },
       { label: 'Meetings', href: '/meetings', icon: Users },
-      { label: 'Knowledge Hub', href: '/knowledge', icon: FolderOpen },
+      { label: 'Document Hub', href: '/knowledge', icon: FolderOpen },
       { label: 'Issue Center', href: '/issues', icon: ShieldAlert },
     ]
   },

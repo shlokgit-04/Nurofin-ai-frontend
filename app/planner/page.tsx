@@ -135,14 +135,14 @@ export default function PlannerPage() {
     try {
       setTasksLoading(true);
       const allTasks = await tasksService.getTasks();
-      // Filter tasks for the selected user
-      // Note: Assuming tasks have assignedTo.id or we match by some other metric. 
-      // If we don't have assignedTo.id, we'll try matching name or if the backend filters by user.
-      // Currently the backend returns ALL tasks if admin, or user's tasks. We filter on frontend just in case.
+      
+      const userTasks = allTasks.filter(t => 
+        String(t.assignedTo?.id) === String(selectedUserId) ||
+        String(t.assigneeId) === String(selectedUserId)
+      );
       
       const selectedUser = teammates.find(u => u.id === selectedUserId);
-      const filtered = allTasks.filter(t => t.assignedTo?.name === selectedUser?.full_name || (t as any).assignedToId === selectedUserId);
-      setTasks(filtered);
+      setTasks(userTasks);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
@@ -384,7 +384,7 @@ export default function PlannerPage() {
   const todayStr = formatDateStr(new Date());
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekDayNums = [1, 2, 3, 4, 5, 6, 0];
-  const dailyHours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  const dailyHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
 
   const getEventsForDate = (dateStr: string) => {
     const local = localEvents.filter(e => e.date === dateStr);
@@ -416,6 +416,17 @@ export default function PlannerPage() {
     }
     if (e.start_time) {
       const parsed = parseInt(e.start_time.split(':')[0]);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+
+  const getEventEndHour = (e: any): number | null => {
+    if (e.source === 'google_calendar' && e.end) {
+      return new Date(e.end).getHours();
+    }
+    if (e.end_time) {
+      const parsed = parseInt(e.end_time.split(':')[0]);
       return isNaN(parsed) ? null : parsed;
     }
     return null;
@@ -714,9 +725,9 @@ export default function PlannerPage() {
                 >
                   Cancel
                 </button>
-                <button
+                <button 
                   type="submit"
-                  className="px-6 h-10 bg-accent-green hover:bg-accent-green-light text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                  className="px-6 h-10 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                 >
                   Save Event
                 </button>
@@ -861,8 +872,20 @@ export default function PlannerPage() {
                   const unscheduledEvents = todaysEvents.filter(e => getEventHour(e) === null);
                   const earlyLateEvents = [...earlyEvents, ...unscheduledEvents, ...lateEvents];
 
-                  const renderEventCard = (evt: any, idx: number) => (
-                    <div key={idx} className="bg-background-primary/80 backdrop-blur p-4 rounded-xl border border-border-subtle hover:border-accent-blue/50 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                  const renderEventCard = (evt: any, idx: number) => {
+                    const isTask = evt.source === 'nurofin_task';
+                    return (
+                    <div 
+                      key={idx} 
+                      className={`bg-background-primary/80 backdrop-blur p-4 rounded-xl border border-border-subtle hover:border-accent-blue/50 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${isTask ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (isTask) {
+                          setSelectedTaskId(evt.id);
+                          setTaskScheduleDate(evt.date || new Date().toISOString().split('T')[0]);
+                          setScheduleTaskOpen(true);
+                        }
+                      }}
+                    >
                       <div className="space-y-1.5">
                         <h4 className="font-bold text-text-primary text-sm flex items-center gap-2">
                           {getEventIcon(evt.source, evt.type)}
@@ -887,7 +910,8 @@ export default function PlannerPage() {
                         )}
                       </div>
                     </div>
-                  );
+                    );
+                  };
 
                   return (
                     <>
@@ -922,7 +946,15 @@ export default function PlannerPage() {
                       >
                         {dailyHours.map((hour) => {
                           const hourNum = parseInt(hour.split(':')[0]);
-                          const hourEvents = todaysEvents.filter(e => getEventHour(e) === hourNum);
+                          const hourEvents = todaysEvents.filter(e => {
+                            const startH = getEventHour(e);
+                            const endH = getEventEndHour(e);
+                            if (startH === null) return false;
+                            if (endH !== null && endH > startH) {
+                              return hourNum >= startH && hourNum < endH;
+                            }
+                            return startH === hourNum;
+                          });
 
                           return (
                             <motion.div variants={itemVariants} key={hour} className="flex gap-5 items-start text-xs border-b border-border-subtle/40 pb-4 last:border-0 last:pb-0">
@@ -1205,7 +1237,7 @@ export default function PlannerPage() {
                     required
                     value={taskScheduleDate}
                     onChange={e => setTaskScheduleDate(e.target.value)}
-                    className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-purple transition-all"
+                    className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1216,7 +1248,7 @@ export default function PlannerPage() {
                       required
                       value={taskScheduleStartTime}
                       onChange={e => setTaskScheduleStartTime(e.target.value)}
-                      className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-purple transition-all"
+                      className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1243,11 +1275,11 @@ export default function PlannerPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 h-10 bg-accent-purple hover:bg-accent-purple-light text-white font-bold rounded-lg shadow-md transition-all text-xs"
+                    className="px-6 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all text-xs"
                   >
                     Save
                   </button>
-                </div>
+                </div>      
               </form>
             </motion.div>
           </div>

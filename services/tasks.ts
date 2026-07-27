@@ -24,6 +24,7 @@ export const tasksService = {
       priority: t.priority,
       dueDate: t.deadline || 'No deadline',
       assignedTo: {
+        id: t.assigned_to_id?.toString() || t.assigned_to?.id?.toString() || '',
         name: t.assigned_to?.name || 'Unassigned',
         avatar: t.assigned_to?.avatar || ''
       },
