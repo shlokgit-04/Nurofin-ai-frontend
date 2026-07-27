@@ -69,6 +69,9 @@ function mapMeeting(m: any): Meeting {
     minutes_of_meeting: m.minutes_of_meeting,
     analysis_status: m.analysis_status,
     metadata_json: m.metadata_json,
+    document_file_path: m.document_file_path,
+    document_filename: m.document_filename,
+    mom_questions: parseJsonArray(m.mom_questions),
     timeline: m.timeline?.map((t: any) => ({
       id: t.id?.toString() || '',
       meeting_id: t.meeting_id?.toString() || '',
@@ -399,6 +402,56 @@ export const meetingsService = {
   getMeetingMoM: async (id: number | string): Promise<{ mom: any; mom_summary: string | null; analysis_status: string | null }> => {
     const res = await fetch(`/api/v1/meetings/${id}/mom`, { headers: getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch meeting MoM');
+    const json = await res.json();
+    return json.data;
+  },
+
+  uploadDocument: async (id: number | string, file: File): Promise<Meeting> => {
+    let token = '';
+    if (typeof window !== 'undefined') {
+      token = localStorage.getItem('auth_token') || '';
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`/api/v1/meetings/${id}/upload-document`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(err.message || 'Failed to upload document');
+    }
+    const json = await res.json();
+    return mapMeeting(json.data);
+  },
+
+  analyzeMeetingEnhanced: async (id: number | string): Promise<Meeting> => {
+    const res = await fetch(`/api/v1/meetings/${id}/analyze-enhanced`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to analyze meeting');
+    const json = await res.json();
+    return mapMeeting(json.data);
+  },
+
+  confirmTasks: async (id: number | string, tasks: { extracted_task_id: number; title?: string; description?: string; priority?: string; deadline?: string; assigned_to_id?: number }[]): Promise<{ count: number; tasks: any[] }> => {
+    const res = await fetch(`/api/v1/meetings/${id}/confirm-tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tasks }),
+    });
+    if (!res.ok) throw new Error('Failed to confirm tasks');
+    const json = await res.json();
+    return json.data;
+  },
+
+  getStructuredData: async (id: number | string): Promise<{ decisions: any[]; risks: any[]; blockers: any[]; followups: any[]; questions: any[]; deadlines: any[]; important_dates: any[] }> => {
+    const res = await fetch(`/api/v1/meetings/${id}/structured-data`, { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch structured data');
     const json = await res.json();
     return json.data;
   },

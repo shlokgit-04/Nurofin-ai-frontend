@@ -193,8 +193,8 @@ export default function TeamChatPage() {
         await chatClient.connectUser(
           {
             id: user_id,
-            name: userProfile.full_name,
-            image: userProfile.profile_picture || '',
+            name: userProfile.name || userProfile.username || '',
+            image: userProfile.avatar || '',
           },
           token
         );
@@ -211,7 +211,7 @@ export default function TeamChatPage() {
           const channel = chatClient.channel('messaging', `project-${p.id}`, {
             name: p.name || `Project ${p.id}`,
             members: members,
-          });
+          } as any);
           
           await channel.watch();
           // Force sync members in case the channel was already created without them

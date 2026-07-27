@@ -10,7 +10,8 @@ import {
   Users, Clock, Calendar, Video, MapPin, Sparkles, FileText, Plus, Loader2,
   Save, AlertCircle, Check, X, Upload, UserPlus, Trash2, Link2, Globe,
   AlertTriangle, ListChecks, MessageSquare, Shield, Target, ChevronRight,
-  CheckCircle2, XCircle, History, ClipboardList, BrainCircuit, BookOpen
+  CheckCircle2, XCircle, History, ClipboardList, BrainCircuit, BookOpen,
+  Paperclip, FileUp, HelpCircle
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,7 +28,7 @@ const meetingSchema = z.object({
 });
 type MeetingFormValues = z.infer<typeof meetingSchema>;
 
-type Tab = 'info' | 'participants' | 'timeline' | 'transcript' | 'summary' | 'minutes' | 'tasks';
+type Tab = 'info' | 'participants' | 'timeline' | 'transcript' | 'summary' | 'minutes' | 'tasks' | 'decisions' | 'risks' | 'followups' | 'questions';
 
 export default function MeetingsPage() {
   const { meetings, setMeetings, addMeeting, updateMeeting, userProfile } = useStore();
@@ -63,6 +64,15 @@ export default function MeetingsPage() {
   const [conflictData, setConflictData] = useState<{message: string, alternative_times: any[]} | null>(null);
   const [users, setUsers] = useState<{id: number, full_name: string}[]>([]);
   const [newEventParticipantIds, setNewEventParticipantIds] = useState<number[]>([]);
+
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const [structuredData, setStructuredData] = useState<any>(null);
+  const [loadingStructured, setLoadingStructured] = useState(false);
+
+  const [confirmingTasks, setConfirmingTasks] = useState(false);
+  const [taskEdits, setTaskEdits] = useState<Record<number, { title: string; description: string; priority: string; deadline: string; assigned_to_id?: number }>>({});
 
   const { register, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
@@ -163,6 +173,39 @@ export default function MeetingsPage() {
       finally { if (active) setLoadingMomData(false); }
     }
     load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
+
+  useEffect(() => {
+    if (!['decisions', 'risks', 'followups', 'questions'].includes(activeTab) || !selectedId) return;
+    let active = true;
+    async function load() {
+      setLoadingStructured(true);
+      try {
+        const data = await meetingsService.getStructuredData(selectedId);
+        if (active) setStructuredData(data);
+      } catch { if (active) setStructuredData(null); }
+      finally { if (active) setLoadingStructured(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, [activeTab, selectedId]);
+
+  useEffect(() => {
+    if (activeTab !== 'tasks' || !selectedId) return;
+    let active = true;
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/v1/users', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (active) setUsers((json.data || []).map((u: any) => ({ id: u.id, full_name: u.full_name })));
+        }
+      } catch {}
+    }
+    loadUsers();
     return () => { active = false; };
   }, [activeTab, selectedId]);
 
@@ -306,6 +349,91 @@ export default function MeetingsPage() {
     finally { setUploadingTranscript(false); }
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!selectedMeeting) return;
+    setUploadingFile(true);
+    try {
+      const updated = await meetingsService.uploadDocument(selectedMeeting.id, file);
+      updateMeeting(selectedMeeting.id, {
+        transcript: updated.transcript,
+        analysis_status: updated.analysis_status,
+        document_filename: updated.document_filename,
+      });
+    } catch (err) { console.error('Failed to upload document:', err); }
+    finally { setUploadingFile(false); }
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleAnalyzeEnhanced = async () => {
+    if (!selectedMeeting) return;
+    setActionLoading('analyze');
+    try {
+      const updated = await meetingsService.analyzeMeetingEnhanced(selectedMeeting.id);
+      updateMeeting(selectedMeeting.id, {
+        ai_summary: updated.ai_summary,
+        minutes_of_meeting: updated.minutes_of_meeting,
+        analysis_status: updated.analysis_status,
+        mom_executive_summary: updated.mom_executive_summary,
+        mom_decisions: updated.mom_decisions,
+        mom_risks: updated.mom_risks,
+        mom_blockers: updated.mom_blockers,
+        mom_followups: updated.mom_followups,
+        mom_questions: updated.mom_questions,
+      });
+    } catch (err) { console.error('Failed to analyze meeting:', err); }
+    finally { setActionLoading(null); }
+  };
+
+  const handleConfirmTasks = async () => {
+    if (!selectedMeeting) return;
+    setConfirmingTasks(true);
+    try {
+      const pendingTasks = extractedTasks.filter(t => t.status === 'pending');
+      const tasksPayload = pendingTasks.map(t => {
+        const edit = taskEdits[Number(t.id)];
+        return {
+          extracted_task_id: Number(t.id),
+          title: edit?.title || t.title,
+          description: edit?.description || t.description,
+          priority: edit?.priority || t.priority,
+          deadline: edit?.deadline || t.deadline,
+          assigned_to_id: edit?.assigned_to_id,
+        };
+      });
+      await meetingsService.confirmTasks(selectedMeeting.id, tasksPayload);
+      const data = await meetingsService.getExtractedTasks(selectedMeeting.id);
+      setExtractedTasks(data);
+      setSelectedTaskIds([]);
+      setTaskEdits({});
+    } catch (err) { console.error('Failed to confirm tasks:', err); }
+    finally { setConfirmingTasks(false); }
+  };
+
+  const updateTaskEdit = (taskId: number, field: string, value: string | number | undefined) => {
+    setTaskEdits(prev => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        title: prev[taskId]?.title || extractedTasks.find(t => Number(t.id) === taskId)?.title || '',
+        description: prev[taskId]?.description || extractedTasks.find(t => Number(t.id) === taskId)?.description || '',
+        priority: prev[taskId]?.priority || extractedTasks.find(t => Number(t.id) === taskId)?.priority || 'medium',
+        deadline: prev[taskId]?.deadline || extractedTasks.find(t => Number(t.id) === taskId)?.deadline || '',
+        [field]: value,
+      },
+    }));
+  };
+
   const handleAnalyzeTranscript = async () => {
     if (!selectedMeeting) return;
     setActionLoading('analyze');
@@ -351,6 +479,10 @@ export default function MeetingsPage() {
     { key: 'summary', label: 'Summary', icon: <BrainCircuit className="w-3.5 h-3.5" /> },
     { key: 'minutes', label: 'Minutes', icon: <BookOpen className="w-3.5 h-3.5" /> },
     { key: 'tasks', label: 'Tasks', icon: <ListChecks className="w-3.5 h-3.5" /> },
+    { key: 'decisions', label: 'Decisions', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+    { key: 'risks', label: 'Risks', icon: <Shield className="w-3.5 h-3.5" /> },
+    { key: 'followups', label: 'Follow-ups', icon: <Target className="w-3.5 h-3.5" /> },
+    { key: 'questions', label: 'Questions', icon: <HelpCircle className="w-3.5 h-3.5" /> },
   ];
 
   if (loading) {
@@ -573,29 +705,253 @@ export default function MeetingsPage() {
               </div>
             )}
 
+            {activeTab === 'decisions' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-accent-green" /> Meeting Decisions</h4>
+                {loadingStructured ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : structuredData?.decisions?.length > 0 ? (
+                  <div className="space-y-2">
+                    {structuredData.decisions.map((d: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-accent-green/5 rounded border border-accent-green/20">
+                        <CheckCircle2 className="w-4 h-4 text-accent-green mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-text-secondary leading-relaxed">{d}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (selectedMeeting.mom_decisions?.length || 0) > 0 ? (
+                  <div className="space-y-2">
+                    {(selectedMeeting.mom_decisions || []).map((d: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-accent-green/5 rounded border border-accent-green/20">
+                        <CheckCircle2 className="w-4 h-4 text-accent-green mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-text-secondary leading-relaxed">{d}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <CheckCircle2 className="w-8 h-8 text-border-subtle" />
+                    <p className="text-[11px]">No decisions recorded. Run AI analysis on transcript or MOM to extract decisions.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'risks' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><Shield className="w-4 h-4 text-accent-red" /> Meeting Risks & Blockers</h4>
+                {loadingStructured ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : (
+                  <div className="space-y-4">
+                    {structuredData?.risks?.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-accent-red uppercase">Risks</span>
+                        {structuredData.risks.map((r: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-accent-red/5 rounded border border-accent-red/20">
+                            <AlertTriangle className="w-4 h-4 text-accent-red mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-text-secondary leading-relaxed">{r}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {structuredData?.blockers?.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase">Blockers</span>
+                        {structuredData.blockers.map((b: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-accent-orange/5 rounded border border-accent-orange/20">
+                            <AlertTriangle className="w-4 h-4 text-accent-orange mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-text-secondary leading-relaxed">{b}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(!structuredData?.risks?.length && !structuredData?.blockers?.length) && ((selectedMeeting.mom_risks?.length || 0) > 0 || (selectedMeeting.mom_blockers?.length || 0) > 0) ? (
+                      <div className="space-y-4">
+                        {(selectedMeeting.mom_risks?.length || 0) > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-[10px] font-bold text-accent-red uppercase">Risks</span>
+                            {(selectedMeeting.mom_risks || []).map((r: string, i: number) => (
+                              <div key={i} className="flex items-start gap-3 p-3 bg-accent-red/5 rounded border border-accent-red/20">
+                                <AlertTriangle className="w-4 h-4 text-accent-red mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-text-secondary leading-relaxed">{r}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(selectedMeeting.mom_blockers?.length || 0) > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-[10px] font-bold text-accent-orange uppercase">Blockers</span>
+                            {(selectedMeeting.mom_blockers || []).map((b: string, i: number) => (
+                              <div key={i} className="flex items-start gap-3 p-3 bg-accent-orange/5 rounded border border-accent-orange/20">
+                                <AlertTriangle className="w-4 h-4 text-accent-orange mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-text-secondary leading-relaxed">{b}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (!structuredData?.risks?.length && !structuredData?.blockers?.length) ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                        <Shield className="w-8 h-8 text-border-subtle" />
+                        <p className="text-[11px]">No risks or blockers recorded. Run AI analysis to extract them.</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'followups' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><Target className="w-4 h-4 text-accent-blue" /> Follow-ups & Deadlines</h4>
+                {loadingStructured ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : (
+                  <div className="space-y-4">
+                    {structuredData?.followups?.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-accent-blue uppercase">Follow-ups</span>
+                        {structuredData.followups.map((f: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-accent-blue/5 rounded border border-accent-blue/20">
+                            <Target className="w-4 h-4 text-accent-blue mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-text-secondary leading-relaxed">{f}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {structuredData?.deadlines?.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-accent-orange uppercase">Deadlines</span>
+                        {structuredData.deadlines.map((d: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-accent-orange/5 rounded border border-accent-orange/20">
+                            <Clock className="w-4 h-4 text-accent-orange mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-text-secondary leading-relaxed">{d}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {(!structuredData?.followups?.length && !structuredData?.deadlines?.length) && (selectedMeeting.mom_followups?.length || 0) > 0 ? (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-accent-blue uppercase">Follow-ups</span>
+                        {(selectedMeeting.mom_followups || []).map((f: string, i: number) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-accent-blue/5 rounded border border-accent-blue/20">
+                            <Target className="w-4 h-4 text-accent-blue mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-text-secondary leading-relaxed">{f}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (!structuredData?.followups?.length && !structuredData?.deadlines?.length) ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                        <Target className="w-8 h-8 text-border-subtle" />
+                        <p className="text-[11px]">No follow-ups or deadlines recorded. Run AI analysis to extract them.</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'questions' && (
+              <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
+                <h4 className="text-sm font-bold flex items-center gap-2"><HelpCircle className="w-4 h-4 text-accent-purple" /> Questions & Answers</h4>
+                {loadingStructured ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>
+                ) : structuredData?.questions?.length > 0 ? (
+                  <div className="space-y-3">
+                    {structuredData.questions.map((q: any, i: number) => (
+                      <div key={i} className="p-3 bg-background-primary rounded border border-border-subtle/50 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <HelpCircle className="w-4 h-4 text-accent-purple mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-text-primary">{typeof q === 'string' ? q : q.question}</p>
+                            {q.asked_by && <span className="text-[10px] text-text-muted">Asked by {q.asked_by}</span>}
+                          </div>
+                        </div>
+                        {q.answer && (
+                          <div className="ml-6 p-2 bg-accent-green/5 rounded border border-accent-green/20">
+                            <span className="text-[10px] font-bold text-accent-green uppercase block mb-0.5">Answer</span>
+                            <p className="text-[11px] text-text-secondary">{q.answer}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (selectedMeeting.mom_questions?.length || 0) > 0 ? (
+                  <div className="space-y-3">
+                    {(selectedMeeting.mom_questions || []).map((q: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-background-primary rounded border border-border-subtle/50">
+                        <HelpCircle className="w-4 h-4 text-accent-purple mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-text-secondary leading-relaxed">{q}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
+                    <HelpCircle className="w-8 h-8 text-border-subtle" />
+                    <p className="text-[11px]">No questions recorded. Run AI analysis to extract questions from the transcript.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'transcript' && (
               <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><MessageSquare className="w-4 h-4 text-text-secondary" /> Meeting Transcript</h4>
-                  {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
+                  <div className="flex items-center gap-2">
+                    {selectedMeeting.document_filename && (
+                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-accent-green/10 border border-accent-green/30 text-accent-green flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" /> {selectedMeeting.document_filename}
+                      </span>
+                    )}
+                    {getAnalysisStatusBadge(selectedMeeting.analysis_status)}
+                  </div>
+                </div>
+
+                <div
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                    dragOver ? "border-accent-blue bg-accent-blue/5" : "border-border-subtle hover:border-text-muted"
+                  )}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleFileDrop}
+                >
+                  {uploadingFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
+                      <span className="text-xs text-text-muted">Extracting text from document...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileUp className="w-8 h-8 text-border-subtle" />
+                      <p className="text-xs text-text-muted">Drag & drop a file here, or</p>
+                      <label className="cursor-pointer">
+                        <span className="text-xs font-semibold text-accent-blue hover:text-accent-blue-hover">browse files</span>
+                        <input type="file" className="hidden" accept=".pdf,.docx,.txt,.md,.markdown,.rtf" onChange={handleFileSelect} />
+                      </label>
+                      <p className="text-[10px] text-text-muted">Supports PDF, DOCX, TXT, Markdown (max 10MB)</p>
+                    </div>
+                  )}
                 </div>
 
                 {selectedMeeting.transcript && (
                   <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-2">
-                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Transcript</span>
+                    <span className="text-[10px] font-bold text-text-secondary uppercase">Saved Transcript ({selectedMeeting.transcript.length} chars)</span>
                     <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">{selectedMeeting.transcript}</p>
                   </div>
                 )}
 
                 <div className="bg-background-primary p-4 rounded border border-border-subtle/50 space-y-3">
-                  <Textarea placeholder="Paste or type meeting transcript here..." className="w-full h-32 resize-none bg-transparent border-none text-xs" value={transcriptText} onChange={(e) => setTranscriptText(e.target.value)} />
+                  <Textarea placeholder="Or paste/type meeting transcript here..." className="w-full h-32 resize-none bg-transparent border-none text-xs" value={transcriptText} onChange={(e) => setTranscriptText(e.target.value)} />
                   <div className="flex gap-2">
                     <button onClick={handleUploadTranscript} disabled={!transcriptText.trim() || uploadingTranscript} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                      {uploadingTranscript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload Transcript
+                      {uploadingTranscript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Upload Text
                     </button>
                     {(selectedMeeting.transcript || selectedMeeting.mom_summary) && (
-                      <button onClick={handleAnalyzeTranscript} disabled={actionLoading === 'analyze'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
-                        {actionLoading === 'analyze' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Analyze Meeting
+                      <button onClick={handleAnalyzeEnhanced} disabled={actionLoading === 'analyze'} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-orange/80 hover:bg-accent-orange text-white text-xs font-semibold rounded-md shadow disabled:opacity-50 transition-colors">
+                        {actionLoading === 'analyze' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI Analyze (Enhanced)
                       </button>
                     )}
                   </div>
@@ -604,7 +960,7 @@ export default function MeetingsPage() {
                 {!selectedMeeting.transcript && !transcriptText && (
                   <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
                     <MessageSquare className="w-8 h-8 text-border-subtle animate-pulse" />
-                    <p className="text-[11px] leading-relaxed">No transcript uploaded yet. Paste the meeting transcript above and click Upload.</p>
+                    <p className="text-[11px] leading-relaxed">No transcript available. Upload a document file or paste text above.</p>
                   </div>
                 )}
               </div>
@@ -783,16 +1139,23 @@ export default function MeetingsPage() {
               <div className="bg-background-secondary p-6 rounded-lg border border-border-subtle shadow-md space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold flex items-center gap-2"><ListChecks className="w-4 h-4 text-text-secondary" /> Extracted Tasks ({extractedTasks.length})</h4>
-                  {selectedTaskIds.length > 0 && (
-                    <div className="flex gap-2">
-                      <button onClick={handleApproveTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-green hover:bg-accent-green/80 text-white text-[10px] font-bold rounded transition-colors">
-                        <Check className="w-3 h-3" /> Approve ({selectedTaskIds.length})
+                  <div className="flex gap-2">
+                    {selectedTaskIds.length > 0 && (
+                      <>
+                        <button onClick={handleApproveTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-green hover:bg-accent-green/80 text-white text-[10px] font-bold rounded transition-colors">
+                          <Check className="w-3 h-3" /> Approve ({selectedTaskIds.length})
+                        </button>
+                        <button onClick={handleRejectTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-red/80 hover:bg-accent-red text-white text-[10px] font-bold rounded transition-colors">
+                          <X className="w-3 h-3" /> Reject ({selectedTaskIds.length})
+                        </button>
+                      </>
+                    )}
+                    {extractedTasks.filter(t => t.status === 'pending').length > 0 && (
+                      <button onClick={handleConfirmTasks} disabled={confirmingTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-blue hover:bg-accent-blue-hover text-white text-[10px] font-bold rounded transition-colors disabled:opacity-50">
+                        {confirmingTasks ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Confirm & Create ({extractedTasks.filter(t => t.status === 'pending').length})
                       </button>
-                      <button onClick={handleRejectTasks} className="flex items-center gap-1 px-2 py-1 bg-accent-red/80 hover:bg-accent-red text-white text-[10px] font-bold rounded transition-colors">
-                        <X className="w-3 h-3" /> Reject ({selectedTaskIds.length})
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {loadingTasks ? (
@@ -800,31 +1163,79 @@ export default function MeetingsPage() {
                 ) : extractedTasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center text-text-muted space-y-2">
                     <ClipboardList className="w-8 h-8 text-border-subtle" />
-                    <p className="text-[11px]">No extracted tasks. Upload transcript or MOM first, then analyze.</p>
+                    <p className="text-[11px]">No extracted tasks. Upload transcript or MOM first, then run analysis.</p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {extractedTasks.map((task) => (
-                      <div key={task.id} className={cn("flex items-start gap-3 p-3 rounded border transition-colors", task.status === 'approved' ? "bg-accent-green/5 border-accent-green/20" : task.status === 'rejected' ? "bg-accent-red/5 border-accent-red/20 opacity-60" : "bg-background-primary border-border-subtle/50 hover:border-text-muted")}>
-                        <input type="checkbox" checked={selectedTaskIds.includes(Number(task.id))} onChange={() => toggleTaskSelection(Number(task.id))} className="mt-1 rounded border-border-subtle" />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold">{task.title}</span>
-                            <span className={cn("text-[9px] uppercase font-bold px-1.5 py-0.5 rounded", task.status === 'approved' ? "bg-accent-green/10 text-accent-green" : task.status === 'rejected' ? "bg-accent-red/10 text-accent-red" : "bg-accent-orange/10 text-accent-orange")}>{task.status}</span>
-                            <span className="text-[9px] text-text-muted">{Math.round(task.confidence * 100)}% confidence</span>
-                          </div>
-                          {task.description && <p className="text-[11px] text-text-muted mt-1">{task.description}</p>}
-                          <div className="flex gap-3 mt-1 text-[10px] text-text-muted">
-                            {task.priority && <span>Priority: {task.priority}</span>}
-                            {task.suggested_owner && <span>Owner: {task.suggested_owner}</span>}
-                            {task.deadline && <span>Due: {task.deadline}</span>}
+                  <div className="space-y-3">
+                    {extractedTasks.map((task) => {
+                      const isEditing = taskEdits[Number(task.id)];
+                      const editData = isEditing || { title: task.title, description: task.description || '', priority: task.priority, deadline: task.deadline || '' };
+                      return (
+                        <div key={task.id} className={cn("p-3 rounded border transition-colors", task.status === 'approved' ? "bg-accent-green/5 border-accent-green/20" : task.status === 'rejected' ? "bg-accent-red/5 border-accent-red/20 opacity-60" : "bg-background-primary border-border-subtle/50 hover:border-text-muted")}>
+                          <div className="flex items-start gap-3">
+                            {task.status === 'pending' && (
+                              <input type="checkbox" checked={selectedTaskIds.includes(Number(task.id))} onChange={() => toggleTaskSelection(Number(task.id))} className="mt-1 rounded border-border-subtle" />
+                            )}
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  value={editData.title}
+                                  onChange={(e) => updateTaskEdit(Number(task.id), 'title', e.target.value)}
+                                  className="flex-1 bg-transparent text-xs font-semibold border-b border-transparent hover:border-border-subtle focus:border-accent-blue outline-none transition-colors px-1 py-0.5"
+                                  disabled={task.status !== 'pending'}
+                                />
+                                <span className={cn("text-[9px] uppercase font-bold px-1.5 py-0.5 rounded", task.status === 'approved' ? "bg-accent-green/10 text-accent-green" : task.status === 'rejected' ? "bg-accent-red/10 text-accent-red" : "bg-accent-orange/10 text-accent-orange")}>{task.status}</span>
+                                <span className="text-[9px] text-text-muted">{Math.round(task.confidence * 100)}%</span>
+                              </div>
+                              <textarea
+                                value={editData.description}
+                                onChange={(e) => updateTaskEdit(Number(task.id), 'description', e.target.value)}
+                                className="w-full bg-transparent text-[11px] text-text-muted border border-transparent hover:border-border-subtle focus:border-accent-blue outline-none resize-none rounded px-1 py-0.5 transition-colors"
+                                rows={2}
+                                placeholder="Task description..."
+                                disabled={task.status !== 'pending'}
+                              />
+                              <div className="flex gap-3 items-center">
+                                <select
+                                  value={editData.priority}
+                                  onChange={(e) => updateTaskEdit(Number(task.id), 'priority', e.target.value)}
+                                  className="text-[10px] bg-background-secondary border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary outline-none"
+                                  disabled={task.status !== 'pending'}
+                                >
+                                  <option value="low">Low</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="high">High</option>
+                                  <option value="critical">Critical</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  value={editData.deadline}
+                                  onChange={(e) => updateTaskEdit(Number(task.id), 'deadline', e.target.value)}
+                                  placeholder="Deadline"
+                                  className="text-[10px] bg-background-secondary border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary outline-none w-24"
+                                  disabled={task.status !== 'pending'}
+                                />
+                                <select
+                                  value={editData.assigned_to_id || ''}
+                                  onChange={(e) => updateTaskEdit(Number(task.id), 'assigned_to_id', e.target.value ? Number(e.target.value) : undefined)}
+                                  className="text-[10px] bg-background-secondary border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary outline-none"
+                                  disabled={task.status !== 'pending'}
+                                >
+                                  <option value="">Auto-assign</option>
+                                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                                </select>
+                                {task.suggested_owner && (
+                                  <span className="text-[10px] text-accent-blue">Suggested: {task.suggested_owner}</span>
+                                )}
+                              </div>
+                            </div>
+                            {task.status === 'approved' && task.real_task_id && (
+                              <span className="text-[9px] text-accent-green flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" /> Created</span>
+                            )}
                           </div>
                         </div>
-                        {task.status === 'approved' && task.real_task_id && (
-                          <span className="text-[9px] text-accent-green flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" /> Created</span>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

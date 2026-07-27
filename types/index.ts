@@ -152,6 +152,9 @@ export interface Meeting {
   minutes_of_meeting?: string;
   analysis_status?: 'uploaded' | 'processing' | 'completed' | 'failed';
   metadata_json?: string;
+  document_file_path?: string;
+  document_filename?: string;
+  mom_questions?: string[];
 }
 
 export type IssueStatus = 'open' | 'in_progress' | 'resolved';
@@ -190,4 +193,15 @@ export interface NotificationItem {
   category: 'general' | 'tasks' | 'meetings' | 'finance' | 'alerts';
   link?: string;
   notification_type?: string;
+}
+
+export interface MeetingStructuredData {
+  meeting_id: number;
+  decisions: string[];
+  risks: string[];
+  blockers: string[];
+  followups: string[];
+  questions: string[];
+  deadlines: string[];
+  important_dates: string[];
 }
