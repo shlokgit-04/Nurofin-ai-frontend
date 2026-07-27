@@ -27,7 +27,8 @@ import {
   ArrowRightLeft,
   History,
   X,
-  Send
+  Send,
+  LinkIcon
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -774,7 +775,31 @@ export default function ProjectsPage() {
                         </span>
                       </div>
                     ) : (
-                      <p className="text-xs text-text-muted italic leading-relaxed">No repository connected. You can link one under the Timeline tab.</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          id="repo-link-input"
+                          placeholder="https://github.com/..."
+                          className="flex-1 text-xs font-mono bg-background-primary border border-border-subtle text-text-primary rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent-blue/20 focus:border-accent-blue transition-all duration-200"
+                        />
+                        <button
+                          onClick={async () => {
+                            const input = document.getElementById('repo-link-input') as HTMLInputElement;
+                            const val = input?.value?.trim();
+                            if (!val || !selectedProject) return;
+                            try {
+                              await projectsService.updateProject(selectedProject.id, { gitUrl: val });
+                              const refreshed = await projectsService.getProjects();
+                              setProjects(refreshed);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          className="px-3 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1"
+                        >
+                          <LinkIcon className="w-3.5 h-3.5" /> Link
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
