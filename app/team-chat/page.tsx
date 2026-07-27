@@ -24,7 +24,7 @@ import 'stream-chat-react/dist/css/index.css';
 const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || '';
 const chatClient = apiKey ? StreamChat.getInstance(apiKey) : null;
 
-// --- New Components for Knowledge Hub & Participants ---
+// --- New Components for Document Hub & Participants ---
 
 const ParticipantSidebar = () => {
   const { channel } = useChannelStateContext();
@@ -85,7 +85,7 @@ const ParticipantSidebar = () => {
   );
 };
 
-const KnowledgeHubAction = () => {
+const DocumentHubAction = () => {
   const { channel } = useChannelStateContext();
   const [isOpen, setIsOpen] = useState(false);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
@@ -99,7 +99,7 @@ const KnowledgeHubAction = () => {
   const sendDoc = async (doc: DocumentItem) => {
     if (!channel) return;
     await channel.sendMessage({
-      text: `I've shared a document from the Knowledge Hub: **${doc.name}**`,
+      text: `I've shared a document from the Document Hub: **${doc.name}**`,
       attachments: [{
         type: 'file',
         title: doc.name,
@@ -119,7 +119,7 @@ const KnowledgeHubAction = () => {
           className="flex items-center space-x-2 text-sm text-primary hover:text-primary-hover transition-colors font-medium bg-primary/10 px-3 py-1.5 rounded-lg"
         >
           <Paperclip size={16} />
-          <span>Attach Knowledge Hub Doc</span>
+          <span>Attach Document Hub Doc</span>
         </button>
       </div>
       
@@ -129,7 +129,7 @@ const KnowledgeHubAction = () => {
             <div className="p-4 border-b border-border-subtle flex items-center justify-between">
               <h3 className="text-lg font-bold text-text-primary flex items-center">
                 <FileText className="mr-2 text-primary" size={20} />
-                Knowledge Hub
+                Document Hub
               </h3>
               <button onClick={() => setIsOpen(false)} className="text-text-muted hover:text-text-primary transition">
                 <X size={20} />
@@ -139,7 +139,7 @@ const KnowledgeHubAction = () => {
               {docs.length === 0 ? (
                 <div className="text-center py-8 text-text-muted">
                   <FileText className="mx-auto mb-3 text-text-muted opacity-50" size={32} />
-                  No documents found in Knowledge Hub.
+                  No documents found in Document Hub.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -274,7 +274,7 @@ export default function TeamChatPage() {
                 <Window>
                   <ChannelHeader />
                   <MessageList />
-                  <KnowledgeHubAction />
+                  <DocumentHubAction />
                   <MessageComposer />
                 </Window>
               </div>

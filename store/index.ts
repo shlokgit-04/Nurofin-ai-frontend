@@ -110,7 +110,7 @@ export const useStore = create<AppState>((set) => ({
   // Mock Projects
   projects: [],
 
-  // Mock Tasks (Work Center)
+  // Mock Tasks (Task Center)
   tasks: [],
 
   // Mock Meetings

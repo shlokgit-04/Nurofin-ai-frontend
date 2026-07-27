@@ -129,7 +129,7 @@ function todayStr(): string {
 
 /* ─── Main Execution Hub Component ────────────────────────────────────────── */
 
-export default function WorkCenterV2Page() {
+export default function TaskCenterPage() {
   const { userProfile } = useStore();
 
   // Data State
@@ -160,13 +160,15 @@ export default function WorkCenterV2Page() {
 
   // Quarter Create Dialog state
   const [showQuarterModal, setShowQuarterModal] = useState(false);
+  const [editingQuarter, setEditingQuarter] = useState<WCQuarter | null>(null);
   const [newQuarterForm, setNewQuarterForm] = useState({
     name: '',
-    fiscal_year: 2027,
+    fiscal_year: 2026,
     quarter_number: 2,
-    start_date: '2027-04-01',
-    end_date: '2027-06-30',
+    start_date: '2026-07-01',
+    end_date: '2026-09-30',
     goals: '',
+    status: 'planning',
   });
 
   // Performance Detail modal state
@@ -287,18 +289,32 @@ export default function WorkCenterV2Page() {
     await loadData();
   };
 
-  const handleCreateQuarter = async (e: React.FormEvent) => {
+  const handleSaveQuarter = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await workcenterService.createQuarter({
-        ...newQuarterForm,
-        fiscal_year: Number(newQuarterForm.fiscal_year),
-        quarter_number: Number(newQuarterForm.quarter_number),
-      });
+      if (editingQuarter) {
+        await workcenterService.updateQuarter(editingQuarter.id, {
+          name: newQuarterForm.name,
+          status: newQuarterForm.status,
+          goals: newQuarterForm.goals || undefined,
+          start_date: newQuarterForm.start_date || undefined,
+          end_date: newQuarterForm.end_date || undefined,
+        });
+      } else {
+        await workcenterService.createQuarter({
+          name: newQuarterForm.name,
+          fiscal_year: Number(newQuarterForm.fiscal_year),
+          quarter_number: Number(newQuarterForm.quarter_number),
+          start_date: newQuarterForm.start_date || undefined,
+          end_date: newQuarterForm.end_date || undefined,
+          goals: newQuarterForm.goals || undefined,
+        });
+      }
       setShowQuarterModal(false);
+      setEditingQuarter(null);
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to create quarter');
+      alert(err.message || 'Failed to save quarter');
     }
   };
 
@@ -559,7 +575,7 @@ export default function WorkCenterV2Page() {
             <div>
               <div className="text-2xl font-extrabold font-sans leading-none">{summary?.inProgress ?? 0}</div>
               <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> +10 from last week
+                <ArrowUpRight className="w-3 h-3" /> In progress now
               </div>
             </div>
           </div>
@@ -572,7 +588,7 @@ export default function WorkCenterV2Page() {
             <div>
               <div className="text-2xl font-extrabold leading-none text-accent-red">{summary?.overdue ?? 0}</div>
               <div className="text-[9px] text-accent-red font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> +5 from yesterday
+                <ArrowUpRight className="w-3 h-3" /> Needs attention
               </div>
             </div>
           </div>
@@ -585,7 +601,7 @@ export default function WorkCenterV2Page() {
             <div>
               <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.completed ?? 0}</div>
               <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> +12 from last week
+                <ArrowUpRight className="w-3 h-3" /> This quarter
               </div>
             </div>
           </div>
@@ -622,7 +638,7 @@ export default function WorkCenterV2Page() {
               <TrendingUp className="w-4 h-4 text-accent-green" />
             </div>
             <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-green">87%</div>
+              <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.quarterProgress ? Math.round(summary.quarterProgress) : '—'}%</div>
               <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
                 Average Score
               </div>
@@ -670,14 +686,34 @@ export default function WorkCenterV2Page() {
                 key={q.id}
                 onClick={() => setSelectedQuarterId(q.id)}
                 className={cn(
-                  "bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 text-left relative",
+                  "bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 text-left relative group",
                   isActive && "border-accent-blue ring-2 ring-accent-blue/20 bg-accent-blue/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
                 )}
               >
                 <div>
-                  <h4 className="text-xs font-bold text-text-primary">{q.name}</h4>
+                  <h4 className="text-xs font-bold text-text-primary pr-6">{q.name}</h4>
                   <p className="text-[9px] text-text-muted mt-1">{q.start_date ? `${q.start_date} - ${q.end_date}` : 'Jan 1 - Mar 31, 2027'}</p>
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingQuarter(q);
+                    setNewQuarterForm({
+                      name: q.name,
+                      fiscal_year: q.fiscal_year,
+                      quarter_number: q.quarter_number,
+                      start_date: q.start_date || '',
+                      end_date: q.end_date || '',
+                      goals: q.goals || '',
+                      status: q.status || 'planning',
+                    });
+                    setShowQuarterModal(true);
+                  }}
+                  className="absolute top-2 right-2 p-1 text-text-muted hover:text-text-primary rounded-md opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-opacity"
+                  title="Edit Quarter"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                </button>
                 <div className="w-full">
                   {q.status === 'active' ? (
                     <div className="space-y-1">
@@ -706,6 +742,61 @@ export default function WorkCenterV2Page() {
             <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
             <span className="text-[10px] font-extrabold uppercase mt-2 select-none">Create Quarter</span>
           </div>
+        </div>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-background-secondary p-3 rounded-xl border border-border-subtle">
+        <input
+          type="text"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary outline-none focus:border-accent-blue transition-colors max-w-xs w-full font-medium"
+        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+          >
+            <option value="">All Statuses</option>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="review">Review</option>
+            <option value="blocked">Blocked</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+          >
+            <option value="">All Priorities</option>
+            <option value="low">🟢 Low</option>
+            <option value="medium">🔵 Medium</option>
+            <option value="high">🟠 High</option>
+            <option value="critical">🔴 Critical</option>
+          </select>
+          <select
+            value={''}
+            onChange={(e) => {
+              // Project filter triggers a reload with project_id
+              const pid = e.target.value;
+              if (pid) {
+                // Filter tasks locally by project
+                setTasks(prev => prev.filter(t => String(t.project_id) === pid));
+              } else {
+                loadData();
+              }
+            }}
+            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+          >
+            <option value="">All Projects</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -1242,6 +1333,7 @@ export default function WorkCenterV2Page() {
         onStatusChange={handleStatusChange}
         allUsers={allUsers}
         onRefreshTask={id => handleSelectTask({ id })}
+        onSelectTask={handleSelectTask}
       />
 
       {/* Transfer Dialog */}
@@ -1254,13 +1346,13 @@ export default function WorkCenterV2Page() {
       />
 
       {/* Quarter Management Dialog */}
-      <Dialog open={showQuarterModal} onOpenChange={setShowQuarterModal}>
+      <Dialog open={showQuarterModal} onOpenChange={(val) => { setShowQuarterModal(val); if (!val) setEditingQuarter(null); }}>
         <DialogContent className="max-w-md font-sans">
           <DialogHeader>
-            <DialogTitle className="text-sm">Create New Quarter</DialogTitle>
-            <DialogDescription>Add a new fiscal quarter for execution tracking.</DialogDescription>
+            <DialogTitle className="text-sm">{editingQuarter ? "Edit Quarter" : "Create New Quarter"}</DialogTitle>
+            <DialogDescription>{editingQuarter ? "Update quarter parameters and status." : "Add a new fiscal quarter for execution tracking."}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateQuarter} className="space-y-4 pt-2 text-xs text-left">
+          <form onSubmit={handleSaveQuarter} className="space-y-4 pt-2 text-xs text-left">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-text-secondary uppercase">Quarter Name *</label>
               <Input
@@ -1272,6 +1364,23 @@ export default function WorkCenterV2Page() {
                 required
               />
             </div>
+            
+            {editingQuarter && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-text-secondary uppercase">Status *</label>
+                <select
+                  value={newQuarterForm.status}
+                  onChange={e => setNewQuarterForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none cursor-pointer"
+                >
+                  <option value="planning">Planning</option>
+                  <option value="active">Active</option>
+                  <option value="closed">Closed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-text-secondary uppercase">Fiscal Year</label>
@@ -1280,6 +1389,7 @@ export default function WorkCenterV2Page() {
                   value={newQuarterForm.fiscal_year}
                   onChange={e => setNewQuarterForm(f => ({ ...f, fiscal_year: Number(e.target.value) }))}
                   className="text-xs"
+                  disabled={!!editingQuarter}
                 />
               </div>
               <div className="space-y-1">
@@ -1291,6 +1401,7 @@ export default function WorkCenterV2Page() {
                   min={1}
                   max={4}
                   className="text-xs"
+                  disabled={!!editingQuarter}
                 />
               </div>
             </div>
@@ -1325,8 +1436,8 @@ export default function WorkCenterV2Page() {
               />
             </div>
             <DialogFooter>
-              <button type="button" onClick={() => setShowQuarterModal(false)} className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-all">Cancel</button>
-              <button type="submit" className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-[10px] font-bold rounded shadow transition-all">Create Quarter</button>
+              <button type="button" onClick={() => { setShowQuarterModal(false); setEditingQuarter(null); }} className="px-3 py-1.5 border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-all">Cancel</button>
+              <button type="submit" className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-[10px] font-bold rounded shadow transition-all">{editingQuarter ? "Save Changes" : "Create Quarter"}</button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1578,6 +1689,7 @@ function TaskDetailDialog({
   onStatusChange,
   allUsers,
   onRefreshTask,
+  onSelectTask,
 }: {
   task: WCTask | null;
   open: boolean;
@@ -1589,6 +1701,7 @@ function TaskDetailDialog({
   onStatusChange: (id: number, status: string) => void;
   allUsers: UserType[];
   onRefreshTask: (id: number) => void;
+  onSelectTask?: (taskItem: { id: number }) => void;
 }) {
   const [history, setHistory] = useState<WCHistoryEntry[]>([]);
   const [transfers, setTransfers] = useState<WCTransfer[]>([]);
@@ -1643,7 +1756,17 @@ function TaskDetailDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto font-sans text-left">
         <DialogHeader>
-          <DialogTitle className="text-sm font-bold">{task.title}</DialogTitle>
+          <div className="flex justify-between items-start pr-6">
+            <DialogTitle className="text-sm font-bold">{task.title}</DialogTitle>
+            {task.parent_id && onSelectTask && (
+              <button
+                onClick={() => onSelectTask({ id: task.parent_id! })}
+                className="text-[10px] text-accent-blue hover:underline font-bold flex items-center gap-0.5"
+              >
+                ← View Main Task
+              </button>
+            )}
+          </div>
           <DialogDescription className="flex flex-wrap items-center gap-2 mt-1">
             <span className={cn("px-2 py-0.5 rounded border text-[9px] font-bold uppercase", getPriorityColor(task.priority))}>{task.priority}</span>
             <span className="text-[11px] bg-surface-card px-2 py-0.5 rounded border border-border-subtle flex items-center gap-1 font-semibold">
@@ -1740,7 +1863,10 @@ function TaskDetailDialog({
                         >
                           <CheckCircle className={cn("w-3.5 h-3.5 transition-colors", isCompleted ? "text-accent-green" : "text-text-muted hover:text-text-primary")} />
                         </button>
-                        <span className={cn("text-[11px] text-text-primary flex-1 font-medium truncate", isCompleted && "line-through text-text-muted")}>
+                        <span
+                          onClick={() => onSelectTask && onSelectTask({ id: st.id })}
+                          className={cn("text-[11px] text-text-primary flex-1 font-medium truncate cursor-pointer hover:text-accent-blue hover:underline", isCompleted && "line-through text-text-muted")}
+                        >
                           {st.title}
                         </span>
                         {st.assigned_to_name && (

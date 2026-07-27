@@ -49,7 +49,7 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
-export default function WorkCenterPage() {
+export default function TaskCenterPage() {
   const { tasks, addTask, updateTask, deleteTask, changeTaskStatus, setTasks } = useStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -225,7 +225,7 @@ export default function WorkCenterPage() {
       {/* Page Header Area */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-background-secondary p-4 rounded-lg border border-border-subtle">
         <div>
-          <h2 className="text-base font-bold font-sans">Nurofin Work Center</h2>
+          <h2 className="text-base font-bold font-sans">Nurofin Task Center</h2>
           <p className="text-2xs text-text-secondary mt-0.5">Manage tasks, update sprint items, and change roadmap states.</p>
         </div>
         <button

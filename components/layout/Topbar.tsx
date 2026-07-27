@@ -57,10 +57,10 @@ export default function Topbar() {
   const getPageTitle = () => {
     if (pathname === '/dashboard') return 'Executive Dashboard';
     if (pathname === '/projects') return 'Projects & Initiatives';
-    if (pathname === '/tasks' || pathname === '/workcenter') return 'Work Center / Execution Hub';
+    if (pathname === '/tasks' || pathname === '/workcenter') return 'Task Center / Execution Hub';
     if (pathname === '/planner') return 'Executive Planner';
     if (pathname === '/meetings') return 'Meeting Operations';
-    if (pathname === '/knowledge') return 'Knowledge Hub';
+    if (pathname === '/knowledge') return 'Document Hub';
     if (pathname === '/issues') return 'Issue Center';
     if (pathname === '/finance') return 'Financial Operations';
     if (pathname === '/chat') return 'Executive AI Assistant';
