@@ -57,6 +57,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<boolean>(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCEO = userProfile.role?.toLowerCase() === 'ceo';
@@ -144,28 +145,53 @@ export default function ProjectsPage() {
   const onSubmit = async (data: ProjectFormValues) => {
     try {
       const { members, ...projectData } = data;
-      const created = await projectsService.createProject({
-        ...projectData,
-        progress: 0
-      });
-      
-      if (members && members.length > 0) {
-        for (const userId of members) {
-          await projectsService.addMember(created.id, userId);
-        }
+      if (editingProject && selectedProjectId) {
+        await projectsService.updateProject(selectedProjectId, projectData);
         const refreshedProjects = await projectsService.getProjects();
         setProjects(refreshedProjects);
-        setSelectedProjectId(created.id);
       } else {
-        addProject(created);
-        setSelectedProjectId(created.id);
+        const created = await projectsService.createProject({
+          ...projectData,
+          progress: 0
+        });
+        if (members && members.length > 0) {
+          for (const userId of members) {
+            await projectsService.addMember(created.id, userId);
+          }
+          const refreshedProjects = await projectsService.getProjects();
+          setProjects(refreshedProjects);
+          setSelectedProjectId(created.id);
+        } else {
+          addProject(created);
+          setSelectedProjectId(created.id);
+        }
       }
       
       setModalOpen(false);
+      setEditingProject(false);
       reset();
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleOpenEditProject = () => {
+    if (!selectedProject) return;
+    setEditingProject(true);
+    const validStatuses = ['planning', 'active', 'completed'];
+    const status = validStatuses.includes(selectedProject.status) ? selectedProject.status : 'planning';
+    reset({
+      name: selectedProject.name,
+      description: selectedProject.description || '',
+      status: status as 'planning' | 'active' | 'completed',
+      startDate: selectedProject.startDate || '',
+      endDate: selectedProject.endDate || '',
+      priority: selectedProject.priority || 'medium',
+      budget: selectedProject.budget || 0,
+      gitUrl: selectedProject.gitUrl || '',
+      members: [],
+    });
+    setModalOpen(true);
   };
 
   const handleAddMember = async (userId: string) => {
@@ -512,7 +538,7 @@ export default function ProjectsPage() {
                 <p className="text-2xs text-text-secondary mt-0.5">Select a project to enter its dedicated workspace or create a new one.</p>
               </div>
               <button
-                onClick={() => setModalOpen(true)}
+                onClick={() => { setEditingProject(false); reset(); setModalOpen(true); }}
                 className="flex items-center gap-1.5 px-4 py-2 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-bold rounded-lg shadow-sm transition-colors hover:shadow-md transform hover:-translate-y-0.5 transition-all duration-200"
               >
                 <Plus className="w-4 h-4" /> Add Project
@@ -632,12 +658,20 @@ export default function ProjectsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isCEO && (
-                    <button
-                      onClick={() => setDeleteConfirmOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red/10 border border-accent-red/20 text-accent-red text-2xs font-extrabold rounded-lg hover:bg-accent-red/20 transition-all uppercase tracking-wider"
-                    >
-                      <Trash className="w-3.5 h-3.5" /> Delete Project
-                    </button>
+                    <>
+                      <button
+                        onClick={handleOpenEditProject}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-2xs font-extrabold rounded-lg hover:bg-accent-blue/20 transition-all uppercase tracking-wider"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Edit Project
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-red/10 border border-accent-red/20 text-accent-red text-2xs font-extrabold rounded-lg hover:bg-accent-red/20 transition-all uppercase tracking-wider"
+                      >
+                        <Trash className="w-3.5 h-3.5" /> Delete Project
+                      </button>
+                    </>
                   )}
                   <span className="text-xs font-black text-accent-blue bg-accent-blue/10 px-3.5 py-1.5 rounded-lg border border-accent-blue/20 shadow-inner">
                     {Math.round(selectedProject.progress || 0)}% Complete
@@ -1358,11 +1392,11 @@ export default function ProjectsPage() {
           
           <DialogHeader className="pb-2 border-b border-border-subtle/30">
             <DialogTitle className="text-lg font-extrabold tracking-wide text-text-primary flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-accent-blue animate-pulse" />
-              <span>Create New Project</span>
+              {editingProject ? <Edit3 className="w-5 h-5 text-accent-blue" /> : <Sparkles className="w-5 h-5 text-accent-blue animate-pulse" />}
+              <span>{editingProject ? 'Edit Project' : 'Create New Project'}</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-text-muted">
-              Establish the parameters, timeline, and team roster for the initiative.
+              {editingProject ? 'Update the parameters and details for this project.' : 'Establish the parameters, timeline, and team roster for the initiative.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1507,7 +1541,7 @@ export default function ProjectsPage() {
             <DialogFooter className="pt-4 border-t border-border-subtle/30 flex items-center gap-2 justify-end">
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => { setModalOpen(false); setEditingProject(false); reset(); }}
                 className="px-4 py-2 border border-border-subtle text-text-secondary hover:text-text-primary text-xs font-semibold rounded-lg hover:bg-surface-hover transition-all duration-200"
               >
                 Cancel
@@ -1516,8 +1550,14 @@ export default function ProjectsPage() {
                 type="submit"
                 className="px-4 py-2 bg-gradient-to-r from-accent-blue to-indigo-600 hover:from-accent-blue-hover hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5"
               >
-                <span>Create Project</span>
-                <Sparkles className="w-3.5 h-3.5 text-white/90 animate-pulse" />
+                {editingProject ? (
+                  <span>Save Changes</span>
+                ) : (
+                  <>
+                    <span>Create Project</span>
+                    <Sparkles className="w-3.5 h-3.5 text-white/90 animate-pulse" />
+                  </>
+                )}
               </button>
             </DialogFooter>
           </form>
