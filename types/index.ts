@@ -205,3 +205,38 @@ export interface MeetingStructuredData {
   deadlines: string[];
   important_dates: string[];
 }
+
+export interface KnowledgeChunk {
+  id: number;
+  source_type: string;
+  source_id: number;
+  source_title: string;
+  title: string;
+  content: string;
+  chunk_type: string;
+  project_id?: number;
+  meeting_id?: number;
+  task_id?: number;
+  conversation_id?: number;
+  score?: number;
+  chunk_metadata?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface KnowledgeSearchResult {
+  chunk_id: number;
+  score: number;
+  title: string;
+  content: string;
+  source_type: string;
+  source_id: number;
+  source_title: string;
+  chunk_type: string;
+  metadata?: Record<string, any>;
+}
+
+export interface KnowledgeStats {
+  total_chunks: number;
+  by_source: Record<string, number>;
+  by_type: Record<string, number>;
+}
