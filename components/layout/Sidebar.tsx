@@ -19,7 +19,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  CalendarDays
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
@@ -47,7 +48,7 @@ const navSections: NavSection[] = [
   {
     title: 'Operations Hub',
     items: [
-      { label: 'Planner', href: '/planner', icon: Calendar },
+      { label: 'Operations Calendar', href: '/planner', icon: CalendarDays },
       { label: 'Meetings', href: '/meetings', icon: Users },
       { label: 'Knowledge Hub', href: '/knowledge', icon: FolderOpen },
       { label: 'Issue Center', href: '/issues', icon: ShieldAlert },

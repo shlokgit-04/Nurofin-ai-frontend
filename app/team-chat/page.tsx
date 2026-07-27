@@ -3,9 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { projectsService } from '@/services/projects';
+import { tasksService } from '@/services/tasks';
+import { plannerService } from '@/services/planner';
 import { knowledgeService, DocumentItem } from '@/services/knowledge';
 import { StreamChat } from 'stream-chat';
-import { FileText, X, Paperclip } from 'lucide-react';
+import { FileText, X, Paperclip, Plus, Briefcase } from 'lucide-react';
 import {
   Chat,
   ChannelList,
@@ -171,6 +173,60 @@ export default function TeamChatPage() {
   const [clientReady, setClientReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Task Chat State
+  const [isTaskChatModalOpen, setIsTaskChatModalOpen] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedTask, setSelectedTask] = useState('');
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isTaskChatModalOpen) {
+      tasksService.getTasks().then(t => {
+        setTasks(t.filter(task => task.assignedTo?.name === userProfile?.name || (task as any).assignedToId === userProfile?.id));
+      });
+      plannerService.getUsers().then(setUsers);
+    }
+  }, [isTaskChatModalOpen, userProfile]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const taskId = urlParams.get('createTaskChat');
+      if (taskId) {
+        setIsTaskChatModalOpen(true);
+        setSelectedTask(taskId);
+        // Clear the URL to prevent reopening on reload
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  const handleCreateTaskChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTask || !chatClient || !userProfile) return;
+    
+    const taskObj = tasks.find(t => t.id === selectedTask);
+    const channelId = `task-${selectedTask}`;
+    const channelName = `Task: ${taskObj?.title || selectedTask}`;
+    
+    try {
+      const members = [String(userProfile.id), ...selectedParticipants];
+      const channel = chatClient.channel('messaging', channelId, {
+        name: channelName,
+        members: members
+      } as Record<string, any>);
+      
+      await channel.create();
+      await channel.watch();
+      setIsTaskChatModalOpen(false);
+      setSelectedTask('');
+      setSelectedParticipants([]);
+    } catch (err) {
+      console.error('Failed to create task chat', err);
+    }
+  };
+
   useEffect(() => {
     async function initChat() {
       if (!chatClient || !userProfile) {
@@ -193,8 +249,8 @@ export default function TeamChatPage() {
         await chatClient.connectUser(
           {
             id: user_id,
-            name: userProfile.full_name,
-            image: userProfile.profile_picture || '',
+            name: userProfile.name,
+            image: userProfile.avatar || '',
           },
           token
         );
@@ -211,7 +267,7 @@ export default function TeamChatPage() {
           const channel = chatClient.channel('messaging', `project-${p.id}`, {
             name: p.name || `Project ${p.id}`,
             members: members,
-          });
+          } as Record<string, any>);
           
           await channel.watch();
           // Force sync members in case the channel was already created without them
@@ -258,14 +314,24 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex h-full bg-background-primary overflow-hidden stream-theme-wrapper">
+    <div className="flex h-full bg-background-primary overflow-hidden stream-theme-wrapper relative">
       <Chat client={chatClient} theme={`str-chat__theme-${theme}`}>
-        <div className="w-80 border-r border-border-subtle bg-background-secondary flex-shrink-0">
-          <ChannelList 
-            filters={{ type: 'messaging', members: { $in: [String(userProfile?.id)] } }}
-            sort={{ last_message_at: -1 }}
-            options={{ state: true, watch: true, presence: true }}
-          />
+        <div className="w-80 border-r border-border-subtle bg-background-secondary flex-shrink-0 flex flex-col">
+          <div className="p-4 border-b border-border-subtle">
+            <button
+              onClick={() => setIsTaskChatModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent-purple hover:bg-accent-purple-light text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+            >
+              <Briefcase className="w-4 h-4" /> Create Task Chat
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ChannelList 
+              filters={{ type: 'messaging', members: { $in: [String(userProfile?.id)] } }}
+              sort={{ last_message_at: -1 }}
+              options={{ state: true, watch: true, presence: true }}
+            />
+          </div>
         </div>
         <div className="flex-1 min-w-0 bg-background-primary relative">
           <Channel>
@@ -284,6 +350,72 @@ export default function TeamChatPage() {
           </Channel>
         </div>
       </Chat>
+
+      {/* Create Task Chat Modal */}
+      {isTaskChatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-xl w-full max-w-md flex flex-col gap-4">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-accent-purple" /> Create Task Chat
+            </h3>
+            <form onSubmit={handleCreateTaskChat} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Select Task</label>
+                <select
+                  required
+                  value={selectedTask}
+                  onChange={e => setSelectedTask(e.target.value)}
+                  className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-purple transition-all"
+                >
+                  <option value="">-- Choose a task --</option>
+                  {tasks.map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+                {tasks.length === 0 && <p className="text-[10px] text-accent-orange">No tasks assigned to you.</p>}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Participants</label>
+                <div className="w-full bg-background-primary border border-border-subtle rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
+                  {users.filter(u => String(u.id) !== String(userProfile?.id)).map(u => (
+                    <label key={u.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-hover p-1 rounded">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border-subtle text-accent-purple focus:ring-accent-purple"
+                        checked={selectedParticipants.includes(String(u.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedParticipants([...selectedParticipants, String(u.id)]);
+                          } else {
+                            setSelectedParticipants(selectedParticipants.filter(id => id !== String(u.id)));
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-text-primary">{u.full_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsTaskChatModalOpen(false)}
+                  className="px-4 h-10 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedTask}
+                  className="px-6 h-10 bg-accent-purple hover:bg-accent-purple-light text-white font-bold rounded-lg shadow-md transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Create Chat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

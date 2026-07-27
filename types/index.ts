@@ -77,6 +77,9 @@ export interface Task {
   projectId?: string;
   projectName?: string;
   comments?: TaskComment[];
+  scheduledDate?: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
 }
 
 export interface MeetingParticipant {
