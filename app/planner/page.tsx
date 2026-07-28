@@ -69,6 +69,13 @@ export default function PlannerPage() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskOpen, setNewTaskOpen] = useState(false);
 
+  // Task Schedule Form State
+  const [scheduleTaskOpen, setScheduleTaskOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskScheduleDate, setTaskScheduleDate] = useState('');
+  const [taskScheduleStartTime, setTaskScheduleStartTime] = useState('09:00');
+  const [taskScheduleEndTime, setTaskScheduleEndTime] = useState('10:00');
+
   const isOwnSchedule = selectedUserId === currentUserId;
 
   const getWeekStart = (date: Date): string => {
@@ -128,14 +135,14 @@ export default function PlannerPage() {
     try {
       setTasksLoading(true);
       const allTasks = await tasksService.getTasks();
-      // Filter tasks for the selected user
-      // Note: Assuming tasks have assignedTo.id or we match by some other metric. 
-      // If we don't have assignedTo.id, we'll try matching name or if the backend filters by user.
-      // Currently the backend returns ALL tasks if admin, or user's tasks. We filter on frontend just in case.
+      
+      const userTasks = allTasks.filter(t => 
+        String(t.assignedTo?.id) === String(selectedUserId) ||
+        String(t.assigneeId) === String(selectedUserId)
+      );
       
       const selectedUser = teammates.find(u => u.id === selectedUserId);
-      const filtered = allTasks.filter(t => t.assignedTo?.name === selectedUser?.full_name || (t as any).assignedToId === selectedUserId);
-      setTasks(filtered);
+      setTasks(userTasks);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
@@ -157,6 +164,48 @@ export default function PlannerPage() {
       }
     }
   }, [selectedUserId, loadSchedule, loadTasks, teammates]);
+
+  const [availabilityWarnings, setAvailabilityWarnings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!newEventDate || !newEventStartTime || newEventParticipantIds.length === 0) {
+      setAvailabilityWarnings({});
+      return;
+    }
+    const checkAvailability = async () => {
+      const warnings: Record<string, string> = {};
+      const computedEndTime = (() => {
+        try {
+          const parts = newEventStartTime.split(':');
+          const endH = (parseInt(parts[0]) + 1).toString().padStart(2, '0');
+          return `${endH}:${parts[1] || '00'}`;
+        } catch(e) {
+          return newEventStartTime;
+        }
+      })();
+      
+      for (const id of newEventParticipantIds) {
+        try {
+          const res = await fetch(`/api/v1/users/${id}/availability?date=${newEventDate}&start_time=${newEventStartTime}&end_time=${computedEndTime}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+            }
+          });
+          const json = await res.json();
+          if (json.data && json.data.is_busy) {
+            const user = teammates.find(t => t.id === id);
+            if (user) {
+              warnings[id] = `${user.full_name} is busy: ${json.data.reasons.join(', ')}`;
+            }
+          }
+        } catch (e) {
+          console.error('Availability check failed', e);
+        }
+      }
+      setAvailabilityWarnings(warnings);
+    };
+    checkAvailability();
+  }, [newEventDate, newEventStartTime, newEventParticipantIds, teammates]);
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +251,29 @@ export default function PlannerPage() {
       loadTasks();
     } catch (error) {
       console.error('Failed to assign task:', error);
+    }
+  };
+
+  const handleScheduleTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTaskId || !taskScheduleDate || !taskScheduleStartTime || !taskScheduleEndTime) return;
+    try {
+      const task = tasks.find(t => t.id === selectedTaskId);
+      if (!task) return;
+      
+      await tasksService.updateTask(selectedTaskId, {
+        ...task,
+        scheduledDate: taskScheduleDate,
+        scheduledStartTime: taskScheduleStartTime,
+        scheduledEndTime: taskScheduleEndTime
+      });
+      
+      setScheduleTaskOpen(false);
+      setSelectedTaskId(null);
+      loadTasks();
+      loadSchedule(); // Refresh timeline events
+    } catch (error) {
+      console.error('Failed to schedule task:', error);
     }
   };
 
@@ -312,7 +384,7 @@ export default function PlannerPage() {
   const todayStr = formatDateStr(new Date());
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekDayNums = [1, 2, 3, 4, 5, 6, 0];
-  const dailyHours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  const dailyHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
 
   const getEventsForDate = (dateStr: string) => {
     const local = localEvents.filter(e => e.date === dateStr);
@@ -322,7 +394,19 @@ export default function PlannerPage() {
       }
       return false;
     });
-    return [...local.map(e => ({ ...e, source: 'nurofin' })), ...google];
+    const scheduledTasks = tasks
+      .filter(t => t.scheduledDate === dateStr || (!t.scheduledDate && t.dueDate && t.dueDate.startsWith(dateStr)))
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        date: t.scheduledDate || (t.dueDate ? t.dueDate.split('T')[0] : dateStr),
+        start_time: t.scheduledStartTime,
+        end_time: t.scheduledEndTime,
+        type: 'task',
+        source: 'nurofin_task',
+      }));
+    return [...local.map(e => ({ ...e, source: 'nurofin' })), ...google, ...scheduledTasks];
   };
 
   // Returns the hour (0-23) for an event, or null if it can't be determined
@@ -332,6 +416,17 @@ export default function PlannerPage() {
     }
     if (e.start_time) {
       const parsed = parseInt(e.start_time.split(':')[0]);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+
+  const getEventEndHour = (e: any): number | null => {
+    if (e.source === 'google_calendar' && e.end) {
+      return new Date(e.end).getHours();
+    }
+    if (e.end_time) {
+      const parsed = parseInt(e.end_time.split(':')[0]);
       return isNaN(parsed) ? null : parsed;
     }
     return null;
@@ -368,8 +463,8 @@ export default function PlannerPage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto font-sans text-text-primary">
-
+    <>
+      <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto font-sans text-text-primary">
       {/* Teammate Sidebar */}
       <div className="w-full lg:w-72 shrink-0 bg-surface-card border border-border-subtle rounded-xl shadow-sm flex flex-col overflow-hidden">
         <div className="p-5 border-b border-border-subtle bg-background-secondary/50">
@@ -596,20 +691,27 @@ export default function PlannerPage() {
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Participants</label>
                 <div className="w-full bg-background-primary border border-border-subtle rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
                   {teammates.map(user => (
-                    <label key={user.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-hover p-1 rounded">
-                      <input
-                        type="checkbox"
-                        className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue"
-                        checked={newEventParticipantIds.includes(user.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewEventParticipantIds([...newEventParticipantIds, user.id]);
-                          } else {
-                            setNewEventParticipantIds(newEventParticipantIds.filter(id => id !== user.id));
-                          }
-                        }}
-                      />
-                      <span className="text-xs text-text-primary">{user.full_name}</span>
+                    <label key={user.id} className="flex flex-col gap-1 cursor-pointer hover:bg-surface-hover p-1.5 rounded transition-colors">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue"
+                          checked={newEventParticipantIds.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewEventParticipantIds([...newEventParticipantIds, user.id]);
+                            } else {
+                              setNewEventParticipantIds(newEventParticipantIds.filter(id => id !== user.id));
+                            }
+                          }}
+                        />
+                        <span className="text-xs text-text-primary font-medium">{user.full_name}</span>
+                      </div>
+                      {availabilityWarnings[user.id] && (
+                        <span className="text-[10px] text-accent-red font-semibold ml-6">
+                          ⚠️ {availabilityWarnings[user.id]}
+                        </span>
+                      )}
                     </label>
                   ))}
                   {teammates.length === 0 && <span className="text-xs text-text-muted italic px-1">No teammates found</span>}
@@ -623,9 +725,9 @@ export default function PlannerPage() {
                 >
                   Cancel
                 </button>
-                <button
+                <button 
                   type="submit"
-                  className="px-6 h-10 bg-accent-green hover:bg-accent-green-light text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                  className="px-6 h-10 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                 >
                   Save Event
                 </button>
@@ -770,8 +872,20 @@ export default function PlannerPage() {
                   const unscheduledEvents = todaysEvents.filter(e => getEventHour(e) === null);
                   const earlyLateEvents = [...earlyEvents, ...unscheduledEvents, ...lateEvents];
 
-                  const renderEventCard = (evt: any, idx: number) => (
-                    <div key={idx} className="bg-background-primary/80 backdrop-blur p-4 rounded-xl border border-border-subtle hover:border-accent-blue/50 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                  const renderEventCard = (evt: any, idx: number) => {
+                    const isTask = evt.source === 'nurofin_task';
+                    return (
+                    <div 
+                      key={idx} 
+                      className={`bg-background-primary/80 backdrop-blur p-4 rounded-xl border border-border-subtle hover:border-accent-blue/50 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${isTask ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (isTask) {
+                          setSelectedTaskId(evt.id);
+                          setTaskScheduleDate(evt.date || new Date().toISOString().split('T')[0]);
+                          setScheduleTaskOpen(true);
+                        }
+                      }}
+                    >
                       <div className="space-y-1.5">
                         <h4 className="font-bold text-text-primary text-sm flex items-center gap-2">
                           {getEventIcon(evt.source, evt.type)}
@@ -796,7 +910,8 @@ export default function PlannerPage() {
                         )}
                       </div>
                     </div>
-                  );
+                    );
+                  };
 
                   return (
                     <>
@@ -831,7 +946,15 @@ export default function PlannerPage() {
                       >
                         {dailyHours.map((hour) => {
                           const hourNum = parseInt(hour.split(':')[0]);
-                          const hourEvents = todaysEvents.filter(e => getEventHour(e) === hourNum);
+                          const hourEvents = todaysEvents.filter(e => {
+                            const startH = getEventHour(e);
+                            const endH = getEventEndHour(e);
+                            if (startH === null) return false;
+                            if (endH !== null && endH > startH) {
+                              return hourNum >= startH && hourNum < endH;
+                            }
+                            return startH === hourNum;
+                          });
 
                           return (
                             <motion.div variants={itemVariants} key={hour} className="flex gap-5 items-start text-xs border-b border-border-subtle/40 pb-4 last:border-0 last:pb-0">
@@ -1057,11 +1180,25 @@ export default function PlannerPage() {
                             <Clock className="w-3.5 h-3.5 text-text-muted" />
                             <span className="text-[11px] font-bold text-text-secondary">Due {new Date(task.dueDate).toLocaleDateString()}</span>
                           </div>
-                          {task.projectId && (
-                            <span className="text-[10px] font-bold text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded">
-                              Project #{task.projectId}
-                            </span>
-                          )}
+                          <div className="flex flex-col items-end gap-2">
+                            {task.projectId && (
+                              <span className="text-[10px] font-bold text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded">
+                                Project #{task.projectId}
+                              </span>
+                            )}
+                            {isOwnSchedule && (
+                              <button 
+                                onClick={() => {
+                                  setSelectedTaskId(task.id);
+                                  setTaskScheduleDate(new Date().toISOString().split('T')[0]);
+                                  setScheduleTaskOpen(true);
+                                }}
+                                className="text-[10px] font-bold text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/20 px-2 py-1 rounded transition-colors"
+                              >
+                                {task.scheduledDate ? 'Reschedule' : 'Schedule Time'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     ))}
@@ -1079,5 +1216,75 @@ export default function PlannerPage() {
         </div>
       </div>
     </div>
+    {/* Schedule Task Modal */}
+    <AnimatePresence>
+        {scheduleTaskOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-xl w-full max-w-sm flex flex-col gap-4"
+            >
+              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-accent-purple" /> Schedule Task
+              </h3>
+              <form onSubmit={handleScheduleTask} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={taskScheduleDate}
+                    onChange={e => setTaskScheduleDate(e.target.value)}
+                    className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Start Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={taskScheduleStartTime}
+                      onChange={e => setTaskScheduleStartTime(e.target.value)}
+                      className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">End Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={taskScheduleEndTime}
+                      onChange={e => setTaskScheduleEndTime(e.target.value)}
+                      className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-purple transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScheduleTaskOpen(false);
+                      setSelectedTaskId(null);
+                    }}
+                    className="px-4 h-10 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all text-xs"
+                  >
+                    Save
+                  </button>
+                </div>      
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

@@ -58,6 +58,7 @@ import {
   Eye,
   X,
   BarChart3,
+  MessageSquare,
   List,
   LayoutGrid,
   Timer,
@@ -1993,6 +1994,11 @@ function TaskDetailDialog({
         )}
 
         <DialogFooter className="mt-4 gap-2">
+          <button onClick={() => {
+            window.location.href = `/team-chat?createTaskChat=${task.id}`;
+          }} className="px-3 py-1.5 bg-accent-purple/10 border border-accent-purple/20 text-accent-purple text-[10px] font-bold rounded hover:bg-accent-purple/20 transition-all flex items-center gap-1">
+            <MessageSquare className="w-3.5 h-3.5" /> Discuss Task
+          </button>
           <button onClick={() => onDelete(task.id)} className="px-3 py-1.5 bg-accent-red/10 border border-accent-red/20 text-accent-red text-[10px] font-bold rounded hover:bg-accent-red/20 transition-all flex items-center gap-1">
             <Trash className="w-3.5 h-3.5" /> Delete
           </button>

@@ -24,10 +24,14 @@ export const tasksService = {
       priority: t.priority,
       dueDate: t.deadline || 'No deadline',
       assignedTo: {
+        id: t.assigned_to_id?.toString() || t.assigned_to?.id?.toString() || '',
         name: t.assigned_to?.name || 'Unassigned',
         avatar: t.assigned_to?.avatar || ''
       },
-      projectId: t.project_id?.toString()
+      projectId: t.project_id?.toString(),
+      scheduledDate: t.scheduled_date || undefined,
+      scheduledStartTime: t.scheduled_start_time || undefined,
+      scheduledEndTime: t.scheduled_end_time || undefined
     }));
   },
   
@@ -39,7 +43,10 @@ export const tasksService = {
       priority: task.priority,
       deadline: task.dueDate,
       assigned_to_id: (task as any).assigneeId ? parseInt((task as any).assigneeId, 10) : undefined,
-      project_id: task.projectId ? parseInt(task.projectId, 10) : undefined
+      project_id: task.projectId ? parseInt(task.projectId, 10) : undefined,
+      scheduled_date: task.scheduledDate,
+      scheduled_start_time: task.scheduledStartTime,
+      scheduled_end_time: task.scheduledEndTime
     };
     const res = await fetch('/api/v1/tasks', {
       method: 'POST',
@@ -60,7 +67,10 @@ export const tasksService = {
         name: t.assigned_to?.name || 'Unassigned',
         avatar: t.assigned_to?.avatar || ''
       },
-      projectId: t.project_id?.toString()
+      projectId: t.project_id?.toString(),
+      scheduledDate: t.scheduled_date || undefined,
+      scheduledStartTime: t.scheduled_start_time || undefined,
+      scheduledEndTime: t.scheduled_end_time || undefined
     };
   },
   
@@ -72,7 +82,10 @@ export const tasksService = {
       priority: task.priority,
       deadline: task.dueDate,
       assigned_to_id: (task as any).assigneeId ? parseInt((task as any).assigneeId, 10) : undefined,
-      project_id: task.projectId ? parseInt(task.projectId, 10) : undefined
+      project_id: task.projectId ? parseInt(task.projectId, 10) : undefined,
+      scheduled_date: task.scheduledDate,
+      scheduled_start_time: task.scheduledStartTime,
+      scheduled_end_time: task.scheduledEndTime
     };
     const res = await fetch(`/api/v1/tasks/${id}`, {
       method: 'PUT',
@@ -93,7 +106,10 @@ export const tasksService = {
         name: t.assigned_to?.name || 'Unassigned',
         avatar: t.assigned_to?.avatar || ''
       },
-      projectId: t.project_id?.toString()
+      projectId: t.project_id?.toString(),
+      scheduledDate: t.scheduled_date || undefined,
+      scheduledStartTime: t.scheduled_start_time || undefined,
+      scheduledEndTime: t.scheduled_end_time || undefined
     };
   },
   
