@@ -70,7 +70,9 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string;
+  assigneeId?: string;
   assignedTo: {
+    id?: string;
     name: string;
     avatar: string;
   };
