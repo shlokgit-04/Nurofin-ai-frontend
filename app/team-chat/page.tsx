@@ -255,11 +255,15 @@ export default function TeamChatPage() {
         const { token, user_id } = tokenData.data;
 
         // 2. Connect user to Stream
+        const avatarUrl = userProfile.avatar?.startsWith('data:image/') 
+          ? `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || 'User')}&background=random`
+          : (userProfile.avatar || '');
+          
         await chatClient.connectUser(
           {
             id: user_id,
             name: userProfile.name || userProfile.username || '',
-            image: userProfile.avatar || '',
+            image: avatarUrl,
           },
           token
         );
