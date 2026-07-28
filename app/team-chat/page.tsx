@@ -230,9 +230,14 @@ export default function TeamChatPage() {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!apiKey || !chatClient) {
+      setError('Stream API Key is missing. Please check your Cloudflare build environment variables.');
+      return;
+    }
+
     async function initChat() {
-      if (!chatClient || !userProfile) {
-        if (!apiKey) setError('Stream API Key is missing in .env.local');
+      if (!userProfile) {
         return;
       }
 
