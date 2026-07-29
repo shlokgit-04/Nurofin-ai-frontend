@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { authService } from '@/services/auth';
+import { notificationsService } from '@/services/notifications';
 
 export default function ClientLayout({
   children,
@@ -120,6 +121,24 @@ export default function ClientLayout({
       if (savedCustomColor) setCustomColor(savedCustomColor);
     }
   }, [setTheme, setThemeColor, setCustomColor]);
+
+  // Fetch notifications from backend on mount and poll every 30 seconds
+  const { setNotifications } = useStore();
+  useEffect(() => {
+    if (!localStorage.getItem('auth_token')) return;
+    let active = true;
+    const fetchNotifs = async () => {
+      try {
+        const data = await notificationsService.getNotifications();
+        if (active && data.length > 0) {
+          setNotifications(data);
+        }
+      } catch {}
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30000);
+    return () => { active = false; clearInterval(interval); };
+  }, [setNotifications]);
 
   // Load user settings when user profile is loaded or changes dynamically
   useEffect(() => {

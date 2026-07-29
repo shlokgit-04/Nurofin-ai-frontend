@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
+import { notificationsService } from '@/services/notifications';
 import { 
   Bell, 
   Check, 
@@ -114,35 +115,40 @@ export default function NotificationsPage() {
             <div className="p-8 text-center text-xs text-text-muted italic">No notifications inside this folder.</div>
           ) : (
             filteredNotifs.map((notif) => (
-              <div 
-                key={notif.id}
-                onClick={() => !notif.read && markNotificationAsRead(notif.id)}
-                className={cn(
-                  "p-4 flex gap-4 items-start text-xs transition-colors cursor-pointer hover:bg-surface-hover/50 text-left",
-                  !notif.read ? "bg-accent-blue/[0.02]" : ""
-                )}
-              >
-                <div className={cn("p-2 border rounded-md h-fit mt-0.5", getCategoryColor(notif.category))}>
-                  {getCategoryIcon(notif.category)}
-                </div>
-
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="font-bold text-text-primary text-xs truncate">{notif.title}</h4>
-                    <span className="text-[9px] text-text-muted flex-shrink-0">{notif.time}</span>
-                  </div>
-                  <p className="text-[11px] text-text-secondary leading-relaxed">{notif.description}</p>
-                </div>
-
-                {/* Read / Unread indicator dot */}
-                <div className="flex items-center justify-center w-6 h-6 flex-shrink-0">
-                  {!notif.read ? (
-                    <span className="w-2.5 h-2.5 rounded-full bg-accent-blue" />
-                  ) : (
-                    <Check className="w-4 h-4 text-text-muted" />
+                <div 
+                  key={notif.id}
+                  onClick={async () => {
+                    if (!notif.read) {
+                      markNotificationAsRead(notif.id);
+                      try { await notificationsService.markAsRead(Number(notif.id)); } catch {}
+                    }
+                  }}
+                  className={cn(
+                    "p-4 flex gap-4 items-start text-xs transition-colors cursor-pointer hover:bg-surface-hover/50 text-left",
+                    !notif.read ? "bg-accent-blue/[0.02]" : ""
                   )}
+                >
+                  <div className={cn("p-2 border rounded-md h-fit mt-0.5", getCategoryColor(notif.category))}>
+                    {getCategoryIcon(notif.category)}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="font-bold text-text-primary text-xs truncate">{notif.title}</h4>
+                      <span className="text-[9px] text-text-muted flex-shrink-0">{notif.time}</span>
+                    </div>
+                    <p className="text-[11px] text-text-secondary leading-relaxed">{notif.description}</p>
+                  </div>
+
+                  {/* Read / Unread indicator dot */}
+                  <div className="flex items-center justify-center w-6 h-6 flex-shrink-0">
+                    {!notif.read ? (
+                      <span className="w-2.5 h-2.5 rounded-full bg-accent-blue" />
+                    ) : (
+                      <Check className="w-4 h-4 text-text-muted" />
+                    )}
+                  </div>
                 </div>
-              </div>
             ))
           )}
         </div>
@@ -164,7 +170,12 @@ export default function NotificationsPage() {
                   {catNotifs.map((notif) => (
                     <div 
                       key={notif.id}
-                      onClick={() => !notif.read && markNotificationAsRead(notif.id)}
+                      onClick={async () => {
+                        if (!notif.read) {
+                          markNotificationAsRead(notif.id);
+                          try { await notificationsService.markAsRead(Number(notif.id)); } catch {}
+                        }
+                      }}
                       className={cn(
                         "p-4 flex gap-4 items-start text-xs transition-colors cursor-pointer hover:bg-surface-hover/50 text-left",
                         !notif.read ? "bg-accent-blue/[0.02]" : ""

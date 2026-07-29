@@ -52,6 +52,7 @@ interface AppState {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   addNotification: (notification: Omit<NotificationItem, 'id' | 'read' | 'time'>) => void;
+  setNotifications: (notifications: NotificationItem[]) => void;
 
   // Project Actions
   addProject: (project: Project) => void;
@@ -180,6 +181,7 @@ export const useStore = create<AppState>((set) => ({
       ...state.notifications
     ]
   })),
+  setNotifications: (notifications) => set({ notifications }),
 
   // Project Actions
   addProject: (project) => set((state) => ({
