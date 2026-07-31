@@ -99,8 +99,11 @@ export default function TaskCenterPage() {
       }
     }
     loadData();
+    const onFocus = () => { if (active) loadData(); };
+    window.addEventListener('focus', onFocus);
     return () => {
       active = false;
+      window.removeEventListener('focus', onFocus);
     };
   }, [setTasks]);
 

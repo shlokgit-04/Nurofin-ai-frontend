@@ -241,6 +241,10 @@ export default function TeamChatPage() {
         return;
       }
 
+      if (!chatClient) {
+        return;
+      }
+
       if (chatClient.userID || connectingRef.current) {
         if (chatClient.userID) setClientReady(true);
         return;

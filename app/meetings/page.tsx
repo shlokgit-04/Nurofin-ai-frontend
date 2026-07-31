@@ -101,7 +101,12 @@ export default function MeetingsPage() {
       }
     }
     loadMeetings();
-    return () => { active = false; };
+    const onFocus = () => { if (active) loadMeetings(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', onFocus);
+    };
   }, [setMeetings, filter, search]);
 
   useEffect(() => {
