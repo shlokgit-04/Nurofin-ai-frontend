@@ -27,7 +27,8 @@ import {
   Sunrise,
   Moon,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  MessageCircle
 } from 'lucide-react';
 import { meetingsService } from '@/services/meetings';
 import { plannerService, PlannerUser, ScheduleEvent } from '@/services/planner';
@@ -593,6 +594,11 @@ export default function PlannerPage() {
                   <p className="text-[10px] text-text-muted truncate capitalize">{user.role || 'Member'}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {String(user.id) !== String(userProfile?.id) && (
+                    <a href={`/team-chat?createDirectChat=${user.id}`} onClick={(e) => e.stopPropagation()} className="bg-white/10 hover:bg-white/30 p-1.5 rounded-full text-text-secondary hover:text-accent-blue transition-colors group-hover:opacity-100 opacity-0" title="Direct Message">
+                      <MessageCircle className="w-3 h-3" />
+                    </a>
+                  )}
                   {user.google_connected && (
                     <span title="Google Calendar connected" className="bg-white/10 p-1 rounded-full">
                       <Globe className="w-3 h-3 text-[#4285F4]" />
@@ -1058,8 +1064,13 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                                const bgColors = ['bg-blue-500 text-white', 'bg-purple-500 text-white', 'bg-orange-500 text-white', 'bg-emerald-500 text-white', 'bg-rose-500 text-white'];
                                const colorClass = bgColors[tmIdx % bgColors.length];
                                return (
-                                 <div key={tm.id} className={`mx-1 p-2 rounded-lg text-center text-xs font-bold uppercase tracking-wider truncate ${colorClass}`}>
-                                   {tm.full_name.split(' ')[0]}
+                                 <div key={tm.id} className={`mx-1 p-2 rounded-lg text-center text-xs font-bold uppercase tracking-wider truncate flex flex-col items-center justify-center gap-1 ${colorClass}`}>
+                                   <span>{tm.full_name.split(' ')[0]}</span>
+                                   {String(tm.id) !== String(userProfile?.id) && (
+                                     <a href={`/team-chat?createDirectChat=${tm.id}`} className="flex items-center gap-1 text-[9px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full transition" title="Direct Message">
+                                       <MessageCircle className="w-3 h-3" /> Chat
+                                     </a>
+                                   )}
                                  </div>
                                );
                             })}
