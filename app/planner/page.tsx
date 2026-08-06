@@ -25,7 +25,9 @@ import {
   AlertCircle,
   Briefcase,
   Sunrise,
-  Moon
+  Moon,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { meetingsService } from '@/services/meetings';
 import { plannerService, PlannerUser, ScheduleEvent } from '@/services/planner';
@@ -42,7 +44,11 @@ export default function PlannerPage() {
   const [selectedUserId, setSelectedUserId] = useState<number>(currentUserId);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
   const [localEvents, setLocalEvents] = useState<any[]>([]);
+  const [allLocalEvents, setAllLocalEvents] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  
+  const [viewTeamSchedule, setViewTeamSchedule] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -57,10 +63,16 @@ export default function PlannerPage() {
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
   const [newEventStartTime, setNewEventStartTime] = useState('10:00');
+  const [newEventEndTime, setNewEventEndTime] = useState('11:00');
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [taskDetailsOpen, setTaskDetailsOpen] = useState(false);
+  const [selectedTaskDetails, setSelectedTaskDetails] = useState<any>(null);
   const [newEventType, setNewEventType] = useState('meeting');
   const [newEventOpen, setNewEventOpen] = useState(false);
   const [conflictData, setConflictData] = useState<{message: string, alternative_times: any[]} | null>(null);
   const [newEventParticipantIds, setNewEventParticipantIds] = useState<number[]>([]);
+  const [newEventParticipants, setNewEventParticipants] = useState<number[]>([]);
   
   // Task Form State
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -118,6 +130,7 @@ export default function PlannerPage() {
       setScheduleEvents(data.schedule || []);
 
       const localData = await meetingsService.getMeetings();
+      setAllLocalEvents(localData);
       const filteredLocalData = localData.filter(m => 
         String(m.owner_id) === String(selectedUserId) || 
         (m.participants && m.participants.some(p => String(p.user_id) === String(selectedUserId)))
@@ -134,21 +147,21 @@ export default function PlannerPage() {
   const loadTasks = useCallback(async () => {
     try {
       setTasksLoading(true);
-      const allTasks = await tasksService.getTasks();
+      const data = await tasksService.getTasks();
+      setAllTasks(data);
       
-      const userTasks = allTasks.filter(t => 
+      const userTasks = data.filter(t => 
         String(t.assignedTo?.id) === String(selectedUserId) ||
         String(t.assigneeId) === String(selectedUserId)
       );
       
-      const selectedUser = teammates.find(u => u.id === selectedUserId);
       setTasks(userTasks);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
       setTasksLoading(false);
     }
-  }, [selectedUserId, teammates]);
+  }, [selectedUserId]);
 
   useEffect(() => {
     loadTeammates();
@@ -212,15 +225,29 @@ export default function PlannerPage() {
     if (!newEventTitle) return;
     try {
       setConflictData(null);
-      const newEvent = await meetingsService.createMeeting({
-        title: newEventTitle,
-        date: newEventDate,
-        time: newEventStartTime,
-        type: newEventType,
-        participant_ids: newEventParticipantIds
-      });
-      setLocalEvents([...localEvents, newEvent]);
+      if (newEventType === 'task') {
+        await tasksService.createTask({
+          title: newEventTitle,
+          description: '',
+          status: 'todo',
+          priority: 'medium',
+          dueDate: newEventDate,
+          assigneeId: selectedUserId.toString()
+        } as any);
+        loadTasks();
+      } else {
+        const newEvent = await meetingsService.createMeeting({
+          title: newEventTitle,
+          date: newEventDate,
+          time: newEventStartTime,
+          end_time: newEventEndTime,
+          type: newEventType,
+          participants: newEventParticipants.map(String) as any
+        });
+        setLocalEvents([...localEvents, newEvent]);
+      }
       setNewEventTitle('');
+      setNewEventParticipants([]);
       setNewEventOpen(false);
       loadSchedule();
     } catch (error: any) {
@@ -384,17 +411,36 @@ export default function PlannerPage() {
   const todayStr = formatDateStr(new Date());
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const weekDayNums = [1, 2, 3, 4, 5, 6, 0];
-  const dailyHours = ['06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'];
+  const dailyHours = Array.from({ length: 24 }, (_, i) => i);
+  
+  const timeOptions = Array.from({ length: 48 }, (_, i) => {
+    const hour = Math.floor(i / 2);
+    const min = i % 2 === 0 ? '00' : '30';
+    const val = `${hour.toString().padStart(2, '0')}:${min}`;
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    let h = hour % 12;
+    if (h === 0) h = 12;
+    const label = `${h}:${min} ${ampm}`;
+    return { value: val, label };
+  });
 
   const getEventsForDate = (dateStr: string) => {
-    const local = localEvents.filter(e => e.date === dateStr);
+    let local = localEvents.filter(e => e.date === dateStr);
+    let currentTasks = tasks;
+    
+    if (viewTeamSchedule && isAdmin) {
+      local = allLocalEvents.filter(e => e.date === dateStr);
+      currentTasks = allTasks;
+    }
+
     const google = scheduleEvents.filter(e => {
       if (e.source === 'google_calendar' && e.start) {
         return e.start.startsWith(dateStr);
       }
       return false;
     });
-    const scheduledTasks = tasks
+    
+    const scheduledTasks = currentTasks
       .filter(t => t.scheduledDate === dateStr || (!t.scheduledDate && t.dueDate && t.dueDate.startsWith(dateStr)))
       .map(t => ({
         id: t.id,
@@ -403,10 +449,18 @@ export default function PlannerPage() {
         date: t.scheduledDate || (t.dueDate ? t.dueDate.split('T')[0] : dateStr),
         start_time: t.scheduledStartTime,
         end_time: t.scheduledEndTime,
-        type: 'task',
+        assigned_to: t.assignedTo?.id || t.assigneeId,
         source: 'nurofin_task',
+        type: 'task',
+        priority: t.priority,
+        status: t.status
       }));
-    return [...local.map(e => ({ ...e, source: 'nurofin' })), ...google, ...scheduledTasks];
+
+    return [...local.map(e => ({ ...e, source: 'nurofin' })), ...google, ...scheduledTasks].sort((a, b) => {
+      const timeA = a.start_time || (a.start ? a.start.split('T')[1] : '00:00');
+      const timeB = b.start_time || (b.start ? b.start.split('T')[1] : '00:00');
+      return String(timeA).localeCompare(String(timeB));
+    });
   };
 
   // Returns the hour (0-23) for an event, or null if it can't be determined
@@ -668,12 +722,27 @@ export default function PlannerPage() {
               </div>
               <div className="space-y-1.5 sm:col-span-1">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Start Time</label>
-                <input
-                  type="time"
+                <select
                   value={newEventStartTime}
                   onChange={e => setNewEventStartTime(e.target.value)}
                   className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
-                />
+                >
+                  {timeOptions.map(opt => (
+                    <option key={`ev-start-${opt.value}`} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-1">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">End Time</label>
+                <select
+                  value={newEventEndTime}
+                  onChange={e => setNewEventEndTime(e.target.value)}
+                  className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                >
+                  {timeOptions.map(opt => (
+                    <option key={`ev-end-${opt.value}`} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Event Type</label>
@@ -685,37 +754,39 @@ export default function PlannerPage() {
                   <option value="meeting">Meeting</option>
                   <option value="reminder">Reminder</option>
                   <option value="event">Event</option>
+                  <option value="task">Task</option>
                 </select>
               </div>
               <div className="space-y-1.5 sm:col-span-6">
-                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Participants</label>
-                <div className="w-full bg-background-primary border border-border-subtle rounded-lg p-2 max-h-32 overflow-y-auto space-y-1">
-                  {teammates.map(user => (
-                    <label key={user.id} className="flex flex-col gap-1 cursor-pointer hover:bg-surface-hover p-1.5 rounded transition-colors">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue"
-                          checked={newEventParticipantIds.includes(user.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setNewEventParticipantIds([...newEventParticipantIds, user.id]);
-                            } else {
-                              setNewEventParticipantIds(newEventParticipantIds.filter(id => id !== user.id));
-                            }
-                          }}
-                        />
-                        <span className="text-xs text-text-primary font-medium">{user.full_name}</span>
-                      </div>
-                      {availabilityWarnings[user.id] && (
-                        <span className="text-[10px] text-accent-red font-semibold ml-6">
-                          ⚠️ {availabilityWarnings[user.id]}
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                  {teammates.length === 0 && <span className="text-xs text-text-muted italic px-1">No teammates found</span>}
-                </div>
+                <button type="button" onClick={() => setShowParticipants(!showParticipants)} className="flex items-center gap-2 text-[10px] text-text-secondary font-bold uppercase tracking-wider hover:text-text-primary transition-colors">
+                  Participants (Optional)
+                  {showParticipants ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                <AnimatePresence>
+                  {showParticipants && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex flex-wrap gap-2 overflow-hidden pt-2">
+                        {teammates.filter(tm => tm.id !== currentUserId).map(tm => {
+                           const isSelected = newEventParticipants.includes(tm.id);
+                           return (
+                              <button
+                                key={tm.id}
+                                type="button"
+                                onClick={() => {
+                                   if (isSelected) {
+                                      setNewEventParticipants(newEventParticipants.filter(id => id !== tm.id));
+                                   } else {
+                                      setNewEventParticipants([...newEventParticipants, tm.id]);
+                                   }
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isSelected ? 'bg-accent-blue text-white' : 'bg-background-secondary text-text-secondary hover:bg-surface-hover border border-border-subtle'}`}
+                              >
+                                 {tm.email}
+                              </button>
+                           )
+                        })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <div className="flex gap-2 justify-end h-10 items-center sm:col-span-6 mt-2 border-t border-border-subtle pt-4">
                 <button
@@ -855,124 +926,218 @@ export default function PlannerPage() {
             {/* Daily View */}
             <TabsContent value="day" className="mt-0">
               <div className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-md space-y-6">
-                <h3 className="text-sm font-bold border-b border-border-subtle pb-4 flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-accent-blue" /> Daily Timeline
+                <h3 className="text-sm font-bold border-b border-border-subtle pb-4 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-accent-blue" /> Daily Timeline
+                  </span>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setViewTeamSchedule(!viewTeamSchedule)}
+                      className={`text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-md shadow-sm border transition-all ${
+                        viewTeamSchedule 
+                        ? 'bg-accent-blue text-white border-accent-blue hover:bg-accent-blue-hover' 
+                        : 'bg-background-secondary text-text-secondary hover:bg-surface-hover border-border-subtle'
+                      }`}
+                    >
+                      {viewTeamSchedule ? 'Viewing Team Schedule' : 'View Team Schedule'}
+                    </button>
+                  )}
                 </h3>
 
-                {(() => {
+                {scheduleLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-text-muted">
+                    <div className="animate-spin w-8 h-8 border-4 border-accent-blue border-t-transparent rounded-full mb-4"></div>
+                    <p className="text-sm font-medium animate-pulse">Loading schedule...</p>
+                  </div>
+                ) : (() => {
                   const todaysEvents = getEventsForDate(todayStr);
-                  const earlyEvents = todaysEvents.filter(e => {
-                    const h = getEventHour(e);
-                    return h !== null && h < 8;
-                  });
-                  const lateEvents = todaysEvents.filter(e => {
-                    const h = getEventHour(e);
-                    return h !== null && h >= 18;
-                  });
-                  const unscheduledEvents = todaysEvents.filter(e => getEventHour(e) === null);
-                  const earlyLateEvents = [...earlyEvents, ...unscheduledEvents, ...lateEvents];
 
-                  const renderEventCard = (evt: any, idx: number) => {
-                    const isTask = evt.source === 'nurofin_task';
+                  const formatAmPm = (hourNum: number) => {
+                    const ampm = hourNum >= 12 ? 'PM' : 'AM';
+                    let h = hourNum % 12;
+                    if (h === 0) h = 12;
+                    return `${h}:00 ${ampm}`;
+                  };
+
+                  const renderEventCard = (evt: any, idx: number, isCompact: boolean = false) => {
+                      const isTask = evt.source === 'nurofin_task';
+                      
+                      // Assign colors based on user id for team schedule view
+                      let bgColor = 'bg-background-primary/80';
+                      let borderColor = 'border-border-subtle hover:border-accent-blue/50';
+                      let textColor = 'text-text-primary';
+                      let userName = '';
+                    
+                    if (evt.source !== 'google_calendar') {
+                       const assignedId = isTask ? evt.assigned_to : evt.owner_id;
+                       if (assignedId) {
+                         const user = teammates.find(t => String(t.id) === String(assignedId));
+                           if (user) {
+                             userName = user.full_name;
+                               const colorPalettes = isCompact ? [
+                                 { bg: 'bg-blue-500', border: 'border-blue-600', text: 'text-white' },
+                                 { bg: 'bg-purple-500', border: 'border-purple-600', text: 'text-white' },
+                                 { bg: 'bg-orange-500', border: 'border-orange-600', text: 'text-white' },
+                                 { bg: 'bg-emerald-500', border: 'border-emerald-600', text: 'text-white' },
+                                 { bg: 'bg-rose-500', border: 'border-rose-600', text: 'text-white' },
+                               ] : [
+                                 { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                                 { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                                 { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                                 { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+                                 { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' },
+                               ];
+                               const userIdx = teammates.findIndex(t => String(t.id) === String(assignedId));
+                               const colorIdx = userIdx >= 0 ? userIdx % colorPalettes.length : 0;
+                               bgColor = colorPalettes[colorIdx].bg;
+                               borderColor = colorPalettes[colorIdx].border;
+                               textColor = colorPalettes[colorIdx].text;
+                           }
+                         }
+                      }
+
                     return (
-                    <div 
-                      key={idx} 
-                      className={`bg-background-primary/80 backdrop-blur p-4 rounded-xl border border-border-subtle hover:border-accent-blue/50 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${isTask ? 'cursor-pointer' : ''}`}
-                      onClick={() => {
-                        if (isTask) {
-                          setSelectedTaskId(evt.id);
-                          setTaskScheduleDate(evt.date || new Date().toISOString().split('T')[0]);
-                          setScheduleTaskOpen(true);
-                        }
-                      }}
-                    >
-                      <div className="space-y-1.5">
-                        <h4 className="font-bold text-text-primary text-sm flex items-center gap-2">
-                          {getEventIcon(evt.source, evt.type)}
-                          {evt.title}
-                        </h4>
-                        {evt.description && <p className="text-xs text-text-secondary line-clamp-1 opacity-80">{evt.description}</p>}
-                        {evt.source === 'google_calendar' && evt.start && evt.end && (
-                          <p className="text-[11px] text-[#4285F4] font-medium flex items-center gap-1 mt-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(evt.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(evt.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                      <div 
+                        key={idx} 
+                        className={`${bgColor} ${textColor} backdrop-blur ${isCompact ? 'p-1.5' : 'p-4'} rounded-xl border ${borderColor} hover:shadow-md 
+transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} justify-between ${isCompact ? 'gap-0.5' : 'gap-4'} group ${isTask ? 'cursor-pointer' : 
+''}`}
+                        onClick={() => {
+                          if (isTask) {
+                            setSelectedTaskId(evt.id);
+                            setTaskScheduleDate(evt.date || new Date().toISOString().split('T')[0]);
+                            setScheduleTaskOpen(true);
+                          }
+                        }}
+                      >
+                        <div className="space-y-1">
+                          <h4 className={`font-bold ${isCompact ? 'text-[10px]' : 'text-sm'} flex items-center gap-1.5 leading-tight`}>
+                            {getEventIcon(evt.source, evt.type)}
+                            <span className="line-clamp-2">{evt.title}</span>
+                          </h4>
+                          {!isCompact && userName && <p className="text-[10px] opacity-80 font-bold uppercase tracking-wider">{userName}</p>}
+                          {!isCompact && evt.description && <p className="text-xs opacity-70 line-clamp-1">{evt.description}</p>}
+                          {evt.start_time && (
+                            <p className={`font-medium flex items-center gap-1 mt-1 opacity-90 ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>
+                              <Clock className="w-3 h-3" />
+                              {evt.start_time} {evt.end_time ? `- ${evt.end_time}` : ''}
+                            </p>
+                          )}
+                          {!evt.start_time && evt.source === 'google_calendar' && evt.start && evt.end && (
+                            <p className={`font-medium flex items-center gap-1 mt-1 opacity-90 ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>
+                              <Clock className="w-3 h-3" />
+                              {new Date(evt.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
+{new Date(evt.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
+                        {!isCompact && (
+                          <div className="shrink-0 flex items-center gap-3">
+                            <span className="text-[10px] font-bold text-text-muted bg-background-secondary/50 px-2 py-1 rounded-md uppercase tracking-wider">
+                              {evt.source === 'google_calendar' ? 'Event' : evt.type}
+                            </span>
+                            {evt.source === 'nurofin' && isOwnSchedule && evt.id && (
+                              <button onClick={() => handleDeleteEvent(evt.id)} className="text-text-muted hover:text-accent-orange transition-colors bg-surface-hover p-1.5 rounded-md opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className={cn("text-[10px] uppercase font-bold border px-2.5 py-1 rounded-md shadow-sm", getEventBadge(evt.source, evt.type))}>
-                          {evt.source === 'google_calendar' ? 'Google' : evt.source === 'nurofin_task' ? 'Task' : evt.type}
-                        </span>
-                        {evt.source === 'nurofin' && isOwnSchedule && evt.id && (
-                          <button onClick={() => handleDeleteEvent(evt.id)} className="text-text-muted hover:text-accent-orange transition-colors bg-surface-hover p-1.5 rounded-md opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
                     );
                   };
 
-                  return (
-                    <>
-                      {earlyLateEvents.length > 0 && (
-                        <div className="rounded-xl border border-dashed border-accent-orange/30 bg-accent-orange/5 p-4 space-y-3">
-                          <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-accent-orange flex items-center gap-2">
-                            <Sunrise className="w-3.5 h-3.5" />
-                            Early / Late (outside 08:00–17:00)
-                          </h4>
-                          <div className="space-y-3">
-                            {earlyLateEvents.map((evt, idx) => (
-                              <div key={idx} className="flex gap-4 items-start">
-                                <span className="font-mono text-text-secondary font-bold text-xs w-14 pt-4 flex items-center gap-1">
-                                  {getEventHour(evt) === null ? (
-                                    <><Moon className="w-3 h-3" /> --:--</>
-                                  ) : (
-                                    getEventTimeLabel(evt)
-                                  )}
-                                </span>
-                                <div className="flex-1">{renderEventCard(evt, idx)}</div>
-                              </div>
-                            ))}
+                  if (viewTeamSchedule && isAdmin) {
+                    return (
+                      <div className="w-full max-h-[75vh] overflow-y-auto pb-4 relative border border-border-subtle rounded-xl">
+                        <div className="w-full flex flex-col min-w-[800px]">
+                          {/* Header Row */}
+                          <div className="grid border-b border-border-subtle pb-2 mb-4 sticky top-0 bg-surface-card z-10 pt-4" style={{ gridTemplateColumns: `4rem repeat(${teammates.length}, minmax(0, 1fr))` }}>
+                            <div className="bg-surface-card"></div>
+                            {teammates.map((tm, tmIdx) => {
+                               const bgColors = ['bg-blue-500 text-white', 'bg-purple-500 text-white', 'bg-orange-500 text-white', 'bg-emerald-500 text-white', 'bg-rose-500 text-white'];
+                               const colorClass = bgColors[tmIdx % bgColors.length];
+                               return (
+                                 <div key={tm.id} className={`mx-1 p-2 rounded-lg text-center text-xs font-bold uppercase tracking-wider truncate ${colorClass}`}>
+                                   {tm.full_name.split(' ')[0]}
+                                 </div>
+                               );
+                            })}
                           </div>
+                          
+                          {/* Hour Rows */}
+                          {dailyHours.map((hourNum) => {
+                            const hourEvents = todaysEvents.filter(e => {
+                              const startH = getEventHour(e);
+                              const endH = getEventEndHour(e);
+                              if (startH === null) return false;
+                              if (endH !== null && endH > startH) {
+                                return (hourNum as number) >= startH && (hourNum as number) < endH;
+                              }
+                              return startH === hourNum;
+                            });
+                            return (
+                              <div key={hourNum} className="grid border-b border-border-subtle/40 py-4 last:border-0 hover:bg-surface-hover/30 transition-colors" style={{ gridTemplateColumns: `4rem repeat(${teammates.length}, minmax(0, 1fr))` }}>
+                                <div className="font-mono text-text-secondary font-bold text-sm pt-2 text-right pr-2">
+                                  {formatAmPm(hourNum as number)}
+                                </div>
+                                {teammates.map(tm => {
+                                   const tmEvents = hourEvents.filter(e => {
+                                      const assignedId = e.source === 'nurofin_task' ? e.assigned_to : e.owner_id;
+                                      return String(assignedId) === String(tm.id);
+                                   });
+                                   return (
+                                     <div key={tm.id} className="px-0.5 space-y-1">
+                                       {tmEvents.length > 0 ? (
+                                          tmEvents.map((evt, idx) => renderEventCard(evt, idx, true))
+                                       ) : (
+                                          <div className="h-12 border border-dashed border-border-subtle/50 rounded-xl bg-background-secondary/10 flex items-center justify-center text-text-muted/30 text-[9px] font-medium opacity-0 hover:opacity-100 transition-opacity">Available</div>
+                                       )}
+                                     </div>
+                                   );
+                                })}
+                              </div>
+                            )
+                          })}
                         </div>
-                      )}
+                      </div>
+                    );
+                  }
 
-                      <motion.div 
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="show"
-                        className="space-y-5"
-                      >
-                        {dailyHours.map((hour) => {
-                          const hourNum = parseInt(hour.split(':')[0]);
-                          const hourEvents = todaysEvents.filter(e => {
-                            const startH = getEventHour(e);
-                            const endH = getEventEndHour(e);
-                            if (startH === null) return false;
-                            if (endH !== null && endH > startH) {
-                              return hourNum >= startH && hourNum < endH;
-                            }
-                            return startH === hourNum;
-                          });
+                  return (
+                    <motion.div 
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="show"
+                      className="space-y-5"
+                    >
+                          {dailyHours.map((hourNum) => {
+                            const hourEvents = todaysEvents.filter(e => {
+                              const startH = getEventHour(e);
+                              const endH = getEventEndHour(e);
+                              if (startH === null) return false;
+                              if (endH !== null && endH > startH) {
+                                return (hourNum as number) >= startH && (hourNum as number) < endH;
+                              }
+                              return startH === hourNum;
+                            });
 
-                          return (
-                            <motion.div variants={itemVariants} key={hour} className="flex gap-5 items-start text-xs border-b border-border-subtle/40 pb-4 last:border-0 last:pb-0">
-                              <span className="font-mono text-text-secondary font-bold text-sm w-12 pt-2">{hour}</span>
-                              {hourEvents.length > 0 ? (
-                                <div className="flex-1 space-y-3">
-                                  {hourEvents.map((evt, idx) => renderEventCard(evt, idx))}
-                                </div>
-                              ) : (
-                                <div className="flex-1 border border-dashed border-border-subtle p-4 rounded-xl text-text-muted italic bg-background-primary/30 flex items-center justify-center opacity-50 text-xs font-medium">
-                                  No events scheduled
-                                </div>
-                              )}
-                            </motion.div>
-                          );
-                        })}
+                            return (
+                              <motion.div variants={itemVariants} key={hourNum} className="flex gap-5 items-start text-xs border-b border-border-subtle/40 pb-4 last:border-0 last:pb-0">
+                                <span className="font-mono text-text-secondary font-bold text-sm w-16 pt-2">{formatAmPm(hourNum as number)}</span>
+                                {hourEvents.length > 0 ? (
+                                  <div className="flex-1 space-y-3">
+                                    {hourEvents.map((evt, idx) => renderEventCard(evt, idx))}
+                                  </div>
+                                ) : (
+                                  <div className="flex-1 border border-dashed border-border-subtle p-4 rounded-xl text-text-muted italic bg-background-primary/30 flex items-center justify-center opacity-50 text-xs font-medium">
+                                    No events scheduled
+                                  </div>
+                                )}
+                              </motion.div>
+                            );
+                          })}
                       </motion.div>
-                    </>
                   );
                 })()}
               </div>
@@ -1141,68 +1306,94 @@ export default function PlannerPage() {
                     <div className="animate-spin w-8 h-8 border-4 border-accent-purple border-t-transparent rounded-full"></div>
                   </div>
                 ) : tasks.length > 0 ? (
-                  <motion.div 
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
-                  >
-                    {tasks.map(task => (
-                      <motion.div 
-                        key={task.id} 
-                        variants={itemVariants}
-                        whileHover={{ y: -4 }}
-                        className="bg-background-primary border border-border-subtle rounded-xl p-5 shadow-sm hover:border-accent-purple/50 transition-all group flex flex-col h-full"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <span className={cn(
-                            "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
-                            task.status === 'completed' ? "bg-accent-green/10 text-accent-green border-accent-green/20" : 
-                            task.status === 'in_progress' ? "bg-accent-blue/10 text-accent-blue border-accent-blue/20" : 
-                            "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
-                          )}>
-                            {task.status.replace('_', ' ')}
-                          </span>
-                          <span className={cn(
-                            "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
-                            task.priority === 'high' ? "bg-accent-red/10 text-accent-red border-accent-red/20" : 
-                            task.priority === 'medium' ? "bg-accent-orange/10 text-accent-orange border-accent-orange/20" : 
-                            "bg-text-secondary/10 text-text-secondary border-text-secondary/20"
-                          )}>
-                            {task.priority} Priority
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-base text-text-primary mb-2 line-clamp-2">{task.title}</h4>
-                        <p className="text-xs text-text-secondary line-clamp-3 mb-4 flex-1">{task.description}</p>
-                        
-                        <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-auto">
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5 text-text-muted" />
-                            <span className="text-[11px] font-bold text-text-secondary">Due {new Date(task.dueDate).toLocaleDateString()}</span>
+                  <div className="space-y-6">
+                    <motion.div 
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="show"
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+                    >
+                      {tasks.filter(t => t.status !== 'completed').map(task => (
+                        <motion.button 
+                          key={task.id} 
+                          variants={itemVariants}
+                          whileHover={{ y: -4 }}
+                          onClick={() => { setSelectedTaskDetails(task); setTaskDetailsOpen(true); }}
+                          className="bg-background-primary text-left border border-border-subtle rounded-xl p-5 shadow-sm hover:border-accent-purple/50 transition-all group flex flex-col h-full w-full"
+                        >
+                          <div className="flex justify-between items-start mb-3 w-full">
+                            <span className={cn(
+                              "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
+                              task.status === 'in_progress' ? "bg-accent-blue/10 text-accent-blue border-accent-blue/20" : 
+                              "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
+                            )}>
+                              {task.status.replace('_', ' ')}
+                            </span>
+                            <span className={cn(
+                              "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
+                              task.priority === 'high' ? "bg-accent-red/10 text-accent-red border-accent-red/20" : 
+                              task.priority === 'medium' ? "bg-accent-orange/10 text-accent-orange border-accent-orange/20" : 
+                              "bg-text-secondary/10 text-text-secondary border-text-secondary/20"
+                            )}>
+                              {task.priority} Priority
+                            </span>
                           </div>
-                          <div className="flex flex-col items-end gap-2">
-                            {task.projectId && (
-                              <span className="text-[10px] font-bold text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded">
-                                Project #{task.projectId}
-                              </span>
-                            )}
-                            {isOwnSchedule && (
-                              <button 
-                                onClick={() => {
-                                  setSelectedTaskId(task.id);
-                                  setTaskScheduleDate(new Date().toISOString().split('T')[0]);
-                                  setScheduleTaskOpen(true);
-                                }}
-                                className="text-[10px] font-bold text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/20 px-2 py-1 rounded transition-colors"
-                              >
-                                {task.scheduledDate ? 'Reschedule' : 'Schedule Time'}
-                              </button>
-                            )}
+                          <h4 className="font-bold text-base text-text-primary mb-2 line-clamp-2 w-full">{task.title}</h4>
+                          <p className="text-xs text-text-secondary line-clamp-3 mb-4 flex-1 w-full">{task.description}</p>
+                          
+                          <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-auto w-full">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3.5 h-3.5 text-text-muted" />
+                              <span className="text-[11px] font-bold text-text-secondary">Due {new Date(task.dueDate).toLocaleDateString()}</span>
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTaskId(task.id);
+                                setTaskScheduleDate(new Date().toISOString().split('T')[0]);
+                                setScheduleTaskOpen(true);
+                              }}
+                              className="text-[10px] font-bold text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/20 px-2 py-1 rounded transition-colors z-10 relative"
+                            >
+                              {task.scheduledDate ? 'Reschedule' : 'Schedule Time'}
+                            </button>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
+                        </motion.button>
+                      ))}
+                    </motion.div>
+                    
+                    {tasks.some(t => t.status === 'completed') && (
+                      <div className="pt-6 border-t border-border-subtle">
+                        <button type="button" onClick={() => setShowCompletedTasks(!showCompletedTasks)} className="flex items-center gap-2 text-sm font-bold text-text-secondary hover:text-text-primary transition-colors">
+                          {showCompletedTasks ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          Completed Tasks
+                        </button>
+                        <AnimatePresence>
+                          {showCompletedTasks && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden pt-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                {tasks.filter(t => t.status === 'completed').map(task => (
+                                  <button
+                                    key={task.id}
+                                    type="button"
+                                    onClick={() => { setSelectedTaskDetails(task); setTaskDetailsOpen(true); }}
+                                    className="bg-background-secondary text-left border border-border-subtle rounded-xl p-4 opacity-75 hover:opacity-100 transition-all w-full"
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border bg-accent-green/10 text-accent-green border-accent-green/20">
+                                        Completed
+                                      </span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-text-primary line-clamp-1">{task.title}</h4>
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-border-subtle rounded-xl bg-background-primary/50">
                     <Briefcase className="w-12 h-12 text-text-muted mb-4 opacity-50" />
@@ -1243,23 +1434,27 @@ export default function PlannerPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Start Time</label>
-                    <input
-                      type="time"
-                      required
+                    <select
                       value={taskScheduleStartTime}
                       onChange={e => setTaskScheduleStartTime(e.target.value)}
                       className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
-                    />
+                    >
+                      {timeOptions.map(opt => (
+                        <option key={`start-${opt.value}`} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">End Time</label>
-                    <input
-                      type="time"
-                      required
+                    <select
                       value={taskScheduleEndTime}
                       onChange={e => setTaskScheduleEndTime(e.target.value)}
                       className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-purple transition-all"
-                    />
+                    >
+                      {timeOptions.map(opt => (
+                        <option key={`end-${opt.value}`} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-border-subtle">
@@ -1281,6 +1476,45 @@ export default function PlannerPage() {
                   </button>
                 </div>      
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Task Details Modal */}
+      <AnimatePresence>
+        {taskDetailsOpen && selectedTaskDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-xl w-full max-w-lg flex flex-col gap-4">
+              <div className="flex justify-between items-center border-b border-border-subtle pb-4">
+                <h3 className="text-lg font-bold text-text-primary">{selectedTaskDetails.title}</h3>
+                <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border ${selectedTaskDetails.status === 'completed' ? 'bg-accent-green/10 text-accent-green border-accent-green/20' : 'bg-accent-blue/10 text-accent-blue border-accent-blue/20'}`}>
+                  {selectedTaskDetails.status.replace('_', ' ')}
+                </span>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Description</h4>
+                  <p className="text-sm text-text-primary">{selectedTaskDetails.description || 'No description provided.'}</p>
+                </div>
+                <div className="flex gap-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Due Date</h4>
+                    <p className="text-sm text-text-primary">{selectedTaskDetails.dueDate}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Priority</h4>
+                    <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border ${selectedTaskDetails.priority === 'high' ? 'bg-accent-red/10 text-accent-red border-accent-red/20' : selectedTaskDetails.priority === 'medium' ? 'bg-accent-orange/10 text-accent-orange border-accent-orange/20' : 'bg-text-secondary/10 text-text-secondary border-text-secondary/20'}`}>
+                      {selectedTaskDetails.priority}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end mt-4 pt-4 border-t border-border-subtle">
+                <button type="button" onClick={() => { setTaskDetailsOpen(false); setSelectedTaskDetails(null); }} className="px-6 h-10 bg-background-secondary hover:bg-surface-hover border border-border-subtle text-text-primary font-bold rounded-lg transition-all text-xs">
+                  Close
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

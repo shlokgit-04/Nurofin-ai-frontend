@@ -20,7 +20,7 @@ export interface PlannerUser {
 }
 
 export interface ScheduleEvent {
-  source: 'nurofin' | 'google_calendar';
+  source: 'nurofin' | 'google_calendar' | 'google_error';
   title: string;
   description?: string;
   date?: string;
@@ -31,6 +31,10 @@ export interface ScheduleEvent {
   type: string;
   status: string;
   read_only: boolean;
+  hangout_link?: string;
+  event_link?: string;
+  location?: string;
+  error?: string;
 }
 
 export interface ScheduleResponse {
