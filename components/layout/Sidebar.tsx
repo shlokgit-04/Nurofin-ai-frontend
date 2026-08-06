@@ -50,7 +50,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: 'Operations Calendar', href: '/planner', icon: CalendarDays },
       { label: 'Meetings', href: '/meetings', icon: Users },
-      { label: 'Document Hub', href: '/knowledge', icon: FolderOpen },
+      { label: 'Document Hub', href: '/documents', icon: FolderOpen },
       { label: 'Issue Center', href: '/issues', icon: ShieldAlert },
     ]
   },
