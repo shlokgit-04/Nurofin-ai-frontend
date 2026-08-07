@@ -30,6 +30,12 @@ export default function ClientLayout({
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === '/login';
+  const [isMounted, setIsMounted] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Intercept all 401 Unauthorized API responses globally to redirect to login
   useEffect(() => {
@@ -51,6 +57,34 @@ export default function ClientLayout({
   // Auth Guard & User Profile loader: Redirect to login if no token is found, fetch me details if exists
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
+    
+    if (isLoginPage) {
+      if (token) {
+        authService.getMe()
+          .then((user) => {
+            updateUserProfile({
+              id: String(user.id),
+              name: user.full_name || "User",
+              email: user.email,
+              role: user.role || "Member",
+              department: user.department || "General",
+              phone: user.phone || "",
+              github: user.github || "",
+              linkedin: user.linkedin || "",
+              avatar: user.profile_picture || ""
+            });
+            router.replace('/dashboard');
+          })
+          .catch(() => {
+            localStorage.removeItem('auth_token');
+            setCheckingAuth(false);
+          });
+      } else {
+        setCheckingAuth(false);
+      }
+      return;
+    }
+
     if (token) {
       authService.getMe()
         .then((user) => {
@@ -65,15 +99,16 @@ export default function ClientLayout({
             linkedin: user.linkedin || "",
             avatar: user.profile_picture || ""
           });
+          setCheckingAuth(false);
         })
         .catch(() => {
           localStorage.removeItem('auth_token');
-          if (!isLoginPage) {
-            router.push('/login');
-          }
+          setCheckingAuth(false);
+          router.replace('/login');
         });
-    } else if (!isLoginPage) {
-      router.push('/login');
+    } else {
+      setCheckingAuth(false);
+      router.replace('/login');
     }
   }, [isLoginPage, router, updateUserProfile]);
 
@@ -203,6 +238,23 @@ export default function ClientLayout({
       <QueryClientProvider client={queryClient}>
         <div className="min-h-screen bg-background-primary text-text-primary relative overflow-hidden">
           {children}
+        </div>
+      </QueryClientProvider>
+    );
+  }
+
+  // Guard protected pages until client is mounted and authentication is verified
+  if (!isMounted || checkingAuth) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <div className="min-h-screen bg-background-primary flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div 
+              className="w-8 h-8 border-4 border-solid rounded-full animate-spin" 
+              style={{ borderColor: 'var(--theme-color, #3B82F6)', borderTopColor: 'transparent' }}
+            />
+            <p className="text-sm text-text-secondary">Authenticating...</p>
+          </div>
         </div>
       </QueryClientProvider>
     );
