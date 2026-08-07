@@ -34,7 +34,8 @@ import {
   Trash, 
   Calendar,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from 'lucide-react';
 
 const taskSchema = z.object({
@@ -50,7 +51,7 @@ const taskSchema = z.object({
 type TaskFormValues = z.infer<typeof taskSchema>;
 
 export default function TaskCenterPage() {
-  const { tasks, addTask, updateTask, deleteTask, changeTaskStatus, setTasks } = useStore();
+  const { tasks, addTask, updateTask, deleteTask, changeTaskStatus, setTasks, userProfile } = useStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -99,8 +100,11 @@ export default function TaskCenterPage() {
       }
     }
     loadData();
+    const onFocus = () => { if (active) loadData(); };
+    window.addEventListener('focus', onFocus);
     return () => {
       active = false;
+      window.removeEventListener('focus', onFocus);
     };
   }, [setTasks]);
 
@@ -392,12 +396,17 @@ export default function TaskCenterPage() {
                         if (!assignee) return <span className="text-2xs text-text-muted">Unassigned</span>;
                         
                         return (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 group">
                             <div 
                               className="w-5 h-5 rounded-full bg-cover bg-center" 
                               style={{ backgroundImage: `url(${assignee.avatar})` }}
                             />
                             <span className="text-2xs">{assignee.name}</span>
+                            {(task as any).assigneeId && String((task as any).assigneeId) !== String(userProfile?.id) && (
+                              <a href={`/team-chat?createDirectChat=${(task as any).assigneeId}`} onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[9px] bg-accent-blue text-white px-1.5 py-0.5 rounded-full transition" title="Message Assignee">
+                                <MessageCircle className="w-3 h-3" />
+                              </a>
+                            )}
                           </div>
                         );
                       })()}
@@ -475,12 +484,17 @@ export default function TaskCenterPage() {
                     if (!assignee) return <span className="text-xs text-text-muted">Unassigned</span>;
                     
                     return (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 group">
                         <div 
                           className="w-6 h-6 rounded-full bg-cover bg-center" 
                           style={{ backgroundImage: `url(${assignee.avatar})` }}
                         />
                         <span>{assignee.name}</span>
+                        {(selectedTask as any).assigneeId && String((selectedTask as any).assigneeId) !== String(userProfile?.id) && (
+                          <a href={`/team-chat?createDirectChat=${(selectedTask as any).assigneeId}`} className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[9px] bg-accent-blue text-white px-2 py-0.5 rounded-full transition" title="Message Assignee">
+                            <MessageCircle className="w-3 h-3" />
+                          </a>
+                        )}
                       </div>
                     );
                   })()}

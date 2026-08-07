@@ -25,7 +25,20 @@ export interface RoleData {
   permissions: string[];
 }
 
+export interface AvailabilityData {
+  status: 'free' | 'partial' | 'busy';
+  color: 'green' | 'orange' | 'red';
+  count: number;
+}
+
 export const usersService = {
+  getAvailabilityToday: async (): Promise<Record<number, AvailabilityData>> => {
+    const res = await fetch('/api/v1/users/availability/today', { headers: getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch availability');
+    const json = await res.json();
+    return json.data || {};
+  },
+
   getUsers: async (role?: string, department?: string): Promise<User[]> => {
     let url = '/api/v1/users';
     const params = new URLSearchParams();

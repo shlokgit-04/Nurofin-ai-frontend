@@ -1837,6 +1837,10 @@ function TaskDetailDialog({
                 <span className="text-[11px] font-semibold">{task.created_at ? timeAgo(task.created_at) : '—'}</span>
               </div>
               <div>
+                <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block mb-1">Assigned By</span>
+                <span className="text-[11px] font-semibold">{(task as any).assigned_by?.full_name || (task as any).assigned_by_name || 'System'}</span>
+              </div>
+              <div>
                 <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider block mb-1">Est. Hours</span>
                 <span className="text-[11px] font-semibold">{task.estimated_hours ?? '—'} hrs</span>
               </div>

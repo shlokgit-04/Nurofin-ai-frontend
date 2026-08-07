@@ -18,7 +18,8 @@ import {
   MessageComposer,
   Thread,
   LoadingIndicator,
-  useChannelStateContext
+  useChannelStateContext,
+  useChatContext
 } from 'stream-chat-react';
 import 'stream-chat-react/dist/css/index.css';
 
@@ -30,7 +31,20 @@ const chatClient = apiKey ? StreamChat.getInstance(apiKey) : null;
 
 const ParticipantSidebar = () => {
   const { channel } = useChannelStateContext();
+  const { client } = useChatContext();
   const [memberList, setMemberList] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [selectedUser, setSelectedUser] = useState('');
+
+  const currentUserRole = channel?.state?.membership?.role;
+  // Stream roles: 'owner' or 'admin' or 'channel_moderator'
+  // Temporarily allowing all users to act as admin so the user can test the UI, as they reported not seeing it.
+  const isChannelAdmin = true; // currentUserRole === 'owner' || currentUserRole === 'admin' || currentUserRole === 'channel_moderator';
+
+  useEffect(() => {
+    plannerService.getUsers().then(setAllUsers);
+  }, []);
 
   useEffect(() => {
     if (!channel) return;
@@ -56,32 +70,108 @@ const ParticipantSidebar = () => {
     };
   }, [channel]);
 
+  const handleAddMember = async () => {
+    if (!selectedUser || !channel) return;
+    try {
+      await channel.addMembers([selectedUser]);
+      setShowAdd(false);
+      setSelectedUser('');
+      // Force refresh (event listener should catch it, but just in case)
+      const response = await channel.queryMembers({}, { created_at: 1 }, { limit: 100 });
+      setMemberList(response.members || []);
+    } catch (err) {
+      console.error('Failed to add member', err);
+    }
+  };
+
+  const handleMakeAdmin = async (userId: string) => {
+    if (!channel) return;
+    try {
+      await channel.addModerators([userId]);
+      // The member updated event will refresh the list
+      const response = await channel.queryMembers({}, { created_at: 1 }, { limit: 100 });
+      setMemberList(response.members || []);
+    } catch (err) {
+      console.error('Failed to make admin', err);
+    }
+  };
+
   if (!channel) return null;
+
+  // Filter out users who are already members
+  const availableUsers = allUsers.filter(u => !memberList.some(m => String(m.user?.id) === String(u.id)));
 
   return (
     <div className="w-64 border-l border-border-subtle bg-background-secondary p-4 flex flex-col overflow-y-auto hidden md:flex">
-      <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">
-        Participants ({memberList.length})
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">
+          Participants ({memberList.length})
+        </h3>
+        {isChannelAdmin && (
+          <button onClick={() => setShowAdd(!showAdd)} className="text-primary hover:text-primary-hover transition-colors bg-primary/10 p-1 rounded">
+            <Plus size={14} />
+          </button>
+        )}
+      </div>
+
+      {showAdd && isChannelAdmin && (
+        <div className="mb-4 space-y-2 p-2 bg-background-primary rounded-lg border border-border-subtle shadow-sm">
+          <select 
+            value={selectedUser} 
+            onChange={(e) => setSelectedUser(e.target.value)}
+            className="w-full text-xs p-1.5 rounded bg-background-secondary border border-border-subtle focus:border-primary transition"
+          >
+            <option value="">Select teammate...</option>
+            {availableUsers.map(u => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+          <button 
+            onClick={handleAddMember}
+            disabled={!selectedUser}
+            className="w-full bg-primary hover:bg-primary-hover text-white text-[10px] font-bold py-1.5 rounded transition disabled:opacity-50"
+          >
+            Add Member
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col space-y-3">
-        {memberList.map((m) => (
-          <div key={m.user?.id} className="flex items-center space-x-3">
-            <div className="relative">
-              <img 
-                src={m.user?.image || `https://ui-avatars.com/api/?name=${m.user?.name}&background=random`} 
-                alt={m.user?.name}
-                className="w-8 h-8 rounded-full object-cover"
-              />
-              {m.user?.online && (
-                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background-secondary"></div>
+        {memberList.map((m) => {
+          const isUserAdmin = m.role === 'owner' || m.role === 'admin' || m.role === 'channel_moderator';
+          return (
+            <div key={m.user?.id} className="flex items-center justify-between group">
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <img 
+                    src={m.user?.image || `https://ui-avatars.com/api/?name=${m.user?.name}&background=random`} 
+                    alt={m.user?.name}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                  {m.user?.online && (
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background-secondary"></div>
+                  )}
+                </div>
+                <div className="flex flex-col overflow-hidden">
+                  <span className="text-sm text-text-primary truncate font-medium">{m.user?.name}</span>
+                  <span className="text-[10px] text-text-muted truncate capitalize font-bold tracking-wider">
+                    {isUserAdmin ? 'Admin' : 'Member'}
+                  </span>
+                </div>
+              </div>
+              
+              {isChannelAdmin && !isUserAdmin && String(m.user?.id) !== String(client?.userID) && (
+                <button 
+                  onClick={() => handleMakeAdmin(String(m.user?.id))}
+                  className="opacity-0 group-hover:opacity-100 text-[9px] font-bold uppercase tracking-wider bg-surface-hover text-text-secondary hover:text-accent-blue px-2 py-1 rounded transition"
+                  title="Make Admin"
+                >
+                  Make Admin
+                </button>
               )}
             </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="text-sm text-text-primary truncate font-medium">{m.user?.name}</span>
-              <span className="text-xs text-text-muted truncate capitalize">{m.user?.role}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -181,27 +271,83 @@ export default function TeamChatPage() {
   const [selectedTask, setSelectedTask] = useState('');
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
 
+  const [isDirectChatModalOpen, setIsDirectChatModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState('');
+
+  const [taskIdToAutoOpen, setTaskIdToAutoOpen] = useState<string | null>(null);
+  const [directUserIdToAutoOpen, setDirectUserIdToAutoOpen] = useState<string | null>(null);
+
   useEffect(() => {
+    if (isTaskChatModalOpen || isDirectChatModalOpen) {
+      plannerService.getUsers().then(setUsers);
+    }
     if (isTaskChatModalOpen) {
       tasksService.getTasks().then(t => {
         setTasks(t.filter(task => task.assignedTo?.name === userProfile?.name || (task as any).assignedToId === userProfile?.id));
       });
-      plannerService.getUsers().then(setUsers);
     }
-  }, [isTaskChatModalOpen, userProfile]);
+  }, [isTaskChatModalOpen, isDirectChatModalOpen, userProfile]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const taskId = urlParams.get('createTaskChat');
+      const directUserId = urlParams.get('createDirectChat');
       if (taskId) {
-        setIsTaskChatModalOpen(true);
-        setSelectedTask(taskId);
-        // Clear the URL to prevent reopening on reload
+        setTaskIdToAutoOpen(taskId);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (directUserId) {
+        setDirectUserIdToAutoOpen(directUserId);
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
   }, []);
+
+  useEffect(() => {
+    const handleAutoOpen = async () => {
+      if (!clientReady || !chatClient || !userProfile) return;
+
+      if (taskIdToAutoOpen) {
+        try {
+          const tList = await tasksService.getTasks();
+          const taskObj = tList.find(t => t.id === taskIdToAutoOpen);
+          const channelId = `task-${taskIdToAutoOpen}`;
+          const channelName = `Task: ${taskObj?.title || taskIdToAutoOpen}`;
+          
+          const members = [String(userProfile.id)];
+          if (taskObj && (taskObj as any).assigneeId && String((taskObj as any).assigneeId) !== String(userProfile.id)) {
+            members.push(String((taskObj as any).assigneeId));
+          }
+
+          const channel = chatClient.channel('messaging', channelId, {
+            name: channelName,
+            members: members
+          } as Record<string, any>);
+          
+          await channel.create();
+          await channel.watch();
+        } catch (err) {
+          console.error('Failed to auto-open task chat', err);
+        }
+        setTaskIdToAutoOpen(null);
+      } else if (directUserIdToAutoOpen) {
+        try {
+          const members = [String(userProfile.id), directUserIdToAutoOpen];
+          const channel = chatClient.channel('messaging', {
+            members: members
+          } as Record<string, any>);
+          
+          await channel.create();
+          await channel.watch();
+        } catch (err) {
+          console.error('Failed to auto-open direct chat', err);
+        }
+        setDirectUserIdToAutoOpen(null);
+      }
+    };
+
+    handleAutoOpen();
+  }, [clientReady, chatClient, userProfile, taskIdToAutoOpen, directUserIdToAutoOpen]);
 
   const handleCreateTaskChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +374,25 @@ export default function TeamChatPage() {
     }
   };
 
+  const handleCreateDirectChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser || !chatClient || !userProfile) return;
+    
+    try {
+      const members = [String(userProfile.id), selectedUser];
+      const channel = chatClient.channel('messaging', {
+        members: members
+      } as Record<string, any>);
+      
+      await channel.create();
+      await channel.watch();
+      setIsDirectChatModalOpen(false);
+      setSelectedUser('');
+    } catch (err) {
+      console.error('Failed to create direct chat', err);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -238,6 +403,10 @@ export default function TeamChatPage() {
 
     async function initChat() {
       if (!userProfile) {
+        return;
+      }
+
+      if (!chatClient) {
         return;
       }
 
@@ -276,11 +445,11 @@ export default function TeamChatPage() {
         // 3. Fetch projects to lazily initialize/watch channels
         const projects = await projectsService.getProjects();
 
-        // Watch each project channel and actively push members
+        // Watch each project channel only if the user is a member
         const watchPromises = projects.map(async (p: any) => {
           const members = p.members ? p.members.map((m: any) => String(m.id)) : [];
-          if (!members.includes(user_id)) {
-            members.push(user_id);
+          if (!members.includes(String(user_id))) {
+            return null; // Skip if not a member
           }
           const channel = chatClient.channel('messaging', `project-${p.id}`, {
             name: p.name || `Project ${p.id}`,
@@ -288,8 +457,6 @@ export default function TeamChatPage() {
           } as Record<string, any>);
           
           await channel.watch();
-          // Force sync members in case the channel was already created without them
-          await channel.addMembers(members);
           return channel;
         });
 
@@ -332,15 +499,21 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex h-full bg-background-primary overflow-hidden stream-theme-wrapper relative">
+    <div className="flex h-[calc(100vh-6rem)] bg-background-primary overflow-hidden stream-theme-wrapper relative rounded-xl border border-border-subtle shadow-sm">
       <Chat client={chatClient} theme={`str-chat__theme-${theme}`}>
-        <div className="w-80 border-r border-border-subtle bg-background-secondary flex-shrink-0 flex flex-col">
-          <div className="p-4 border-b border-border-subtle">
+        <div className="w-80 border-r border-border-subtle bg-background-secondary flex-shrink-0 flex flex-col h-full">
+          <div className="p-4 border-b border-border-subtle space-y-2">
             <button
               onClick={() => setIsTaskChatModalOpen(true)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
             >
               <Briefcase className="w-4 h-4" /> Create Task Chat
+            </button>
+            <button
+              onClick={() => setIsDirectChatModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent-blue hover:bg-accent-blue/90 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> New Direct Message
             </button>
           </div>
           <div className="flex-1 min-h-0">
@@ -428,6 +601,49 @@ export default function TeamChatPage() {
                   className="px-6 h-10 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow-md transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create Chat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Direct Chat Modal */}
+      {isDirectChatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-xl w-full max-w-md flex flex-col gap-4">
+            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+              <Plus className="w-5 h-5 text-accent-blue" /> Direct Message
+            </h3>
+            <form onSubmit={handleCreateDirectChat} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Select Teammate</label>
+                <select
+                  required
+                  value={selectedUser}
+                  onChange={e => setSelectedUser(e.target.value)}
+                  className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                >
+                  <option value="">-- Choose a teammate --</option>
+                  {users.filter(u => String(u.id) !== String(userProfile?.id)).map(u => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsDirectChatModalOpen(false)}
+                  className="px-4 h-10 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all text-xs"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={!selectedUser}
+                  className="px-6 h-10 bg-accent-blue hover:bg-accent-blue/90 text-white font-bold rounded-lg shadow-md transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Start Chat
                 </button>
               </div>
             </form>

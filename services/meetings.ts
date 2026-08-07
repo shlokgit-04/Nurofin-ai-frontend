@@ -120,13 +120,15 @@ export const meetingsService = {
     filter?: 'today' | 'weekly' | 'monthly',
     search?: string,
     sort?: string,
-    status?: string
+    status?: string,
+    targetUserId?: number | string
   ): Promise<Meeting[]> => {
     const params = new URLSearchParams();
     if (filter) params.set('filter', filter);
     if (search) params.set('search', search);
     if (sort) params.set('sort', sort);
     if (status) params.set('status', status);
+    if (targetUserId) params.set('target_user_id', String(targetUserId));
     const qs = params.toString();
     const url = `/api/v1/meetings/${qs ? `?${qs}` : ''}`;
     const res = await fetch(url, { headers: getHeaders() });
