@@ -75,6 +75,10 @@ import {
   Sparkles,
   ArrowRight,
   Info,
+  Mail,
+  Phone,
+  Github,
+  Linkedin,
 } from 'lucide-react';
 
 /* ─── Constants ───────────────────────────────────────────────────────────── */
@@ -801,418 +805,252 @@ export default function TaskCenterPage() {
         </div>
       </div>
 
-      {/* Main Split Layout: My Tasks & Sidebar Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Side: My Tasks (70% width) */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-3">
-            <h3 className="text-base font-extrabold select-none">My Tasks</h3>
-            <div className="flex flex-wrap gap-1.5 bg-background-secondary p-1 border border-border-subtle rounded-lg">
-              {([
-                { key: 'kanban' as const, label: 'Kanban' },
-                { key: 'timeline' as const, label: 'Timeline' },
-                { key: 'calendar' as const, label: 'Calendar' },
-                { key: 'gantt' as const, label: 'Gantt' },
-                { key: 'table' as const, label: 'List' },
-                { key: 'workload' as const, label: 'Workload' },
-                { key: 'analytics' as const, label: 'Analytics' },
-              ]).map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setViewMode(t.key)}
-                  className={cn(
-                    "px-3 py-1.5 text-[11px] font-bold rounded-md transition-colors",
-                    viewMode === t.key ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="min-h-[400px]">
-            {viewMode === 'kanban' && (
-              <KanbanBoard tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} />
-            )}
-            
-            {viewMode === 'table' && (
-              <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
-            )}
-
-            {viewMode === 'timeline' && (
-              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-text-primary select-none">Weekly Task Schedule</h4>
-                  <span className="text-[10px] text-text-muted">Active Sprints</span>
-                </div>
-                <div className="space-y-3">
-                  {timelineTasks.map((task, idx) => (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-semibold">
-                        <span>{task.title}</span>
-                        <span>{task.progress}%</span>
-                      </div>
-                      <div className="w-full bg-border-subtle rounded-full h-2 overflow-hidden">
-                        <div className="bg-accent-purple h-2 rounded-full" style={{ width: `${task.progress}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                  {timelineTasks.length === 0 && (
-                    <div className="text-center py-12 text-[11px] text-text-muted">No timeline tasks found</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {viewMode === 'calendar' && (
-              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-center py-12">
-                <Calendar className="w-8 h-8 text-text-muted mx-auto mb-2" />
-                <h4 className="text-xs font-bold text-text-primary">Executive Task Calendar</h4>
-                <p className="text-[10px] text-text-secondary mt-1">{calendarMonthLabel}</p>
-                <div className="grid grid-cols-7 gap-1 mt-6 text-[10px] max-w-sm mx-auto border border-border-subtle p-2 rounded bg-background-primary">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} className="font-bold py-1 text-text-muted">{d}</div>)}
-                  {calendarDays.map((d, i) => {
-                    const hasTasks = tasks.some(t => t.deadline === d.dateStr);
-                    return (
-                      <div key={i} className={cn(
-                        "py-2 rounded transition-colors relative cursor-pointer hover:bg-surface-hover",
-                        d.isCurrentMonth ? "text-text-primary" : "text-text-muted/40",
-                        hasTasks && "bg-accent-blue/10 text-accent-blue font-bold"
-                      )}>
-                        {d.day}
-                        {hasTasks && <div className="w-1.5 h-1.5 rounded-full bg-accent-blue absolute bottom-0.5 left-1/2 -translate-x-1/2" />}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {viewMode === 'gantt' && (
-              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-                <h4 className="text-xs font-bold text-text-primary select-none">Project Deliverable Gantt Chart</h4>
-                <div className="space-y-4 pt-2">
-                  {ganttTasks.map(t => (
-                    <div key={t.id} className="grid grid-cols-4 items-center gap-3">
-                      <span className="text-[10px] font-semibold text-text-primary truncate">{t.title}</span>
-                      <div className="col-span-3 h-6 bg-background-primary rounded border border-border-subtle relative overflow-hidden">
-                        <div
-                          className="h-full bg-accent-blue/20 border-r border-accent-blue flex items-center justify-end pr-2 text-[8px] font-extrabold text-accent-blue"
-                          style={{
-                            marginLeft: `${t.left}%`,
-                            width: `${t.width}%`
-                          }}
-                        >
-                          {t.deadline ? t.deadline.slice(5) : '—'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {ganttTasks.length === 0 && (
-                    <div className="text-center py-12 text-[11px] text-text-muted">No Gantt tasks mapped</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {viewMode === 'workload' && (
-              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-                <h4 className="text-xs font-bold text-text-primary select-none">Employee Capacity Tracker</h4>
-                <div className="space-y-3 mt-2">
-                  {allUsers.map(u => {
-                    const count = tasks.filter(t => t.assigned_to_id === Number(u.id) && t.status !== 'completed').length;
-                    const pct = Math.min(100, (count / 5) * 100);
-                    return (
-                      <div key={u.id} className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-semibold">
-                          <span className="flex items-center gap-1.5">
-                            {u.avatar ? <img src={u.avatar} className="w-4 h-4 rounded-full object-cover" alt={u.name} /> : <div className="w-4 h-4 rounded-full bg-accent-blue" />}
-                            {u.name}
-                          </span>
-                          <span className={cn("font-bold", count >= 4 ? "text-accent-red" : "text-accent-green")}>
-                            {count} active tasks ({count >= 4 ? 'Overloaded' : 'Healthy'})
-                          </span>
-                        </div>
-                        <div className="w-full bg-background-primary rounded-full h-2">
-                          <div className={cn("h-2 rounded-full", count >= 4 ? "bg-accent-red" : "bg-accent-green")} style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {viewMode === 'analytics' && (
-              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-6">
-                <h4 className="text-xs font-bold text-text-primary select-none">Quarter Analytics</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
-                    <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">BURNDOWN DATA</span>
-                    <ResponsiveContainer width="100%" height="90%">
-                      <AreaChart data={burndownData}>
-                        <XAxis dataKey="name" fontSize={8} />
-                        <YAxis fontSize={8} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="ideal" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.05} />
-                        <Area type="monotone" dataKey="actual" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.05} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
-                    <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">COMPLETED BY QUARTER</span>
-                    <ResponsiveContainer width="100%" height="90%">
-                      <BarChart data={velocityData}>
-                        <XAxis dataKey="name" fontSize={8} />
-                        <YAxis fontSize={8} />
-                        <Tooltip />
-                        <Bar dataKey="completed" fill="#10B981" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-
-        {/* Right Side Widgets (30% width) */}
-        <div className="flex flex-col gap-6">
-          
-          {/* Overdue Tasks widget */}
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col max-h-[300px]">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Overdue Tasks</h3>
-              <span onClick={() => setViewMode('table')} className="text-[10px] text-accent-blue font-bold hover:underline cursor-pointer">View All</span>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {overdueTasksList.slice(0, 4).map(t => (
-                <div key={t.id} onClick={() => handleSelectTask(t)} className="bg-background-primary border border-border-subtle p-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer hover:border-text-muted transition-colors">
-                  <div className="min-w-0">
-                    <h4 className="text-[11px] font-bold text-text-primary truncate">{t.title}</h4>
-                    <p className="text-[9px] text-accent-red font-bold flex items-center gap-0.5 mt-0.5">
-                      {t.daysOverdue} days overdue
-                    </p>
-                  </div>
-                  <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase flex-shrink-0", getPriorityColor(t.priority))}>
-                    {t.priority}
-                  </span>
-                </div>
-              ))}
-              {overdueTasksList.length === 0 && (
-                <div className="text-center py-8 text-[11px] text-text-muted">No overdue tasks!</div>
-              )}
-            </div>
-          </div>
-
-          {/* Performance Leaderboard widget */}
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Performance Leaderboard</h3>
-              <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
-            </div>
-            <div className="space-y-3">
-              {performersList.slice(0, 5).map((p, idx) => (
-                <div key={p.user_id} className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-text-muted w-4 text-center">{idx + 1}</span>
-                  {p.avatar ? (
-                    <img src={p.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={p.name} />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{p.name.charAt(0)}</div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-[11px] font-bold text-text-primary truncate">{p.name}</h4>
-                  </div>
-                  <span className={cn(
-                    "text-xs font-bold",
-                    p.performance_pct >= 90 ? "text-accent-green" : p.performance_pct >= 80 ? "text-accent-purple" : "text-accent-orange"
-                  )}>
-                    {p.performance_pct}%
-                  </span>
-                </div>
-              ))}
-              {performersList.length === 0 && (
-                <div className="text-center py-6 text-[11px] text-text-muted">No scoreboard data</div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Row 2: Task Timeline & Health Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left: Task Timeline */}
-        <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Task Timeline (My Tasks)</h3>
-              <p className="text-[10px] text-text-muted mt-0.5">Active Window</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-text-muted bg-background-primary border border-border-subtle px-2 py-0.5 rounded font-bold cursor-pointer select-none">Week</span>
-              <span className="text-[10px] text-text-muted bg-background-primary border border-border-subtle px-2 py-0.5 rounded font-bold cursor-pointer select-none">Today</span>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            {timelineTasks.map((item, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex items-center justify-between text-[10px] font-semibold text-text-primary">
-                  <span>{item.title}</span>
-                  <span className="text-text-muted">{item.dates}</span>
-                </div>
-                <div className="w-full bg-background-primary border border-border-subtle/50 rounded-full h-5 relative overflow-hidden flex items-center pr-2 justify-end">
-                  <div className={cn("h-full rounded-full absolute left-0 top-0 transition-all", item.color)} style={{ width: `${item.progress}%` }} />
-                  <span className="text-[9px] font-extrabold text-white z-10 relative drop-shadow">{item.progress}%</span>
-                </div>
-              </div>
-            ))}
-            {timelineTasks.length === 0 && (
-              <div className="text-center py-8 text-[11px] text-text-muted">No timeline tasks found</div>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Task Health Chart */}
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col justify-between h-72">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Task Health</h3>
-          <div className="flex-1 flex items-center justify-center relative">
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie
-                  data={taskHealthData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={65}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {taskHealthData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-xl font-extrabold text-text-primary leading-none">{totalHealthCount}</span>
-              <span className="text-[9px] text-text-muted uppercase tracking-wider font-bold mt-1">Total Tasks</span>
-            </div>
-          </div>
-          <div className="flex items-center justify-around border-t border-border-subtle/50 pt-3">
-            {taskHealthData.map((d, i) => (
-              <div key={i} className="text-center">
-                <div className="flex items-center gap-1 text-[10px] font-bold text-text-secondary justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span>{d.name}</span>
-                </div>
-                <div className="text-xs font-extrabold mt-0.5">{d.value} ({totalHealthCount > 0 ? Math.round((d.value/totalHealthCount)*100) : 0}%)</div>
-              </div>
+      {/* Main Layout: Full Width My Tasks */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-3">
+          <h3 className="text-base font-extrabold select-none">My Tasks</h3>
+          <div className="flex flex-wrap gap-1.5 bg-background-secondary p-1 border border-border-subtle rounded-lg">
+            {([
+              { key: 'kanban' as const, label: 'Kanban' },
+              { key: 'timeline' as const, label: 'Timeline' },
+              { key: 'calendar' as const, label: 'Calendar' },
+              { key: 'gantt' as const, label: 'Gantt' },
+              { key: 'table' as const, label: 'List' },
+              { key: 'workload' as const, label: 'Workload' },
+              { key: 'analytics' as const, label: 'Analytics' },
+            ]).map(t => (
+              <button
+                key={t.key}
+                onClick={() => setViewMode(t.key)}
+                className={cn(
+                  "px-3 py-1.5 text-[11px] font-bold rounded-md transition-colors",
+                  viewMode === t.key ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                )}
+              >
+                {t.label}
+              </button>
             ))}
           </div>
         </div>
 
-      </div>
-
-      {/* Row 3: Employee Table & Recent Activity Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left: Employee Performance */}
-        <div className="lg:col-span-2 bg-background-secondary border border-border-subtle rounded-xl p-4 text-left">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Employee Performance</h3>
-            <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
-          </div>
+        <div className="min-h-[400px]">
+          {viewMode === 'kanban' && (
+            <KanbanBoard tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} />
+          )}
           
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted">Employee</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Tasks Assigned</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Completed</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Overdue</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">In Progress</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Performance</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Trend</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allUsers.filter(u => u.username !== 'vincent_ceo').map(u => {
-                  const uTasks = tasks.filter(t => t.assigned_to_id === Number(u.id));
-                  const total = uTasks.length;
-                  const completed = uTasks.filter(t => t.status === 'completed').length;
-                  const progress = uTasks.filter(t => t.status === 'in_progress').length;
-                  
-                  const today = new Date().toISOString().split('T')[0];
-                  const overdue = uTasks.filter(t => t.deadline && t.deadline < today && t.status !== 'completed').length;
-                  const score = total > 0 ? Math.round((completed / total) * 100) : 0;
-                  
+          {viewMode === 'table' && (
+            <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
+          )}
+
+          {viewMode === 'timeline' && (
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-bold text-text-primary select-none">Weekly Task Schedule</h4>
+                <span className="text-[10px] text-text-muted">Active Sprints</span>
+              </div>
+              <div className="space-y-3">
+                {timelineTasks.map((task, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-semibold">
+                      <span>{task.title}</span>
+                      <span>{task.progress}%</span>
+                    </div>
+                    <div className="w-full bg-border-subtle rounded-full h-2 overflow-hidden">
+                      <div className="bg-accent-purple h-2 rounded-full" style={{ width: `${task.progress}%` }} />
+                    </div>
+                  </div>
+                ))}
+                {timelineTasks.length === 0 && (
+                  <div className="text-center py-12 text-[11px] text-text-muted">No timeline tasks found</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'calendar' && (
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-center py-12">
+              <Calendar className="w-8 h-8 text-text-muted mx-auto mb-2" />
+              <h4 className="text-xs font-bold text-text-primary">Executive Task Calendar</h4>
+              <p className="text-[10px] text-text-secondary mt-1">{calendarMonthLabel}</p>
+              <div className="grid grid-cols-7 gap-1 mt-6 text-[10px] max-w-sm mx-auto border border-border-subtle p-2 rounded bg-background-primary">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} className="font-bold py-1 text-text-muted">{d}</div>)}
+                {calendarDays.map((d, i) => {
+                  const hasTasks = tasks.some(t => t.deadline === d.dateStr);
                   return (
-                    <TableRow key={u.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {u.avatar ? (
-                            <img src={u.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={u.name} />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold">{u.name.charAt(0)}</div>
-                          )}
-                          <span className="text-xs font-bold text-text-primary">{u.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center font-bold text-xs">{total}</TableCell>
-                      <TableCell className="text-center font-bold text-xs text-accent-green">{completed}</TableCell>
-                      <TableCell className="text-center font-bold text-xs text-accent-red">{overdue}</TableCell>
-                      <TableCell className="text-center font-bold text-xs text-accent-blue">{progress}</TableCell>
-                      <TableCell className="text-center">
-                        <span className={cn(
-                          "text-xs font-extrabold",
-                          score >= 90 ? "text-accent-green" : score >= 80 ? "text-accent-purple" : "text-accent-orange"
-                        )}>
-                          {score}%
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <svg className="w-12 h-5 mx-auto" viewBox="0 0 50 20">
-                          <path
-                            d={getSparklinePath(score)}
-                            fill="none"
-                            stroke={score >= 90 ? "#10B981" : score >= 80 ? "#8B5CF6" : "#F59E0B"}
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <button
-                          onClick={() => setPerfViewUser(u)}
-                          className="px-2.5 py-1 bg-background-primary hover:bg-surface-hover border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-colors"
-                        >
-                          View
-                        </button>
-                      </TableCell>
-                    </TableRow>
+                    <div key={i} className={cn(
+                      "py-2 rounded transition-colors relative cursor-pointer hover:bg-surface-hover",
+                      d.isCurrentMonth ? "text-text-primary" : "text-text-muted/40",
+                      hasTasks && "bg-accent-blue/10 text-accent-blue font-bold"
+                    )}>
+                      {d.day}
+                      {hasTasks && <div className="w-1.5 h-1.5 rounded-full bg-accent-blue absolute bottom-0.5 left-1/2 -translate-x-1/2" />}
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'gantt' && (
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
+              <h4 className="text-xs font-bold text-text-primary select-none">Project Deliverable Gantt Chart</h4>
+              <div className="space-y-4 pt-2">
+                {ganttTasks.map(t => (
+                  <div key={t.id} className="grid grid-cols-4 items-center gap-3">
+                    <span className="text-[10px] font-semibold text-text-primary truncate">{t.title}</span>
+                    <div className="col-span-3 h-6 bg-background-primary rounded border border-border-subtle relative overflow-hidden">
+                      <div
+                        className="h-full bg-accent-blue/20 border-r border-accent-blue flex items-center justify-end pr-2 text-[8px] font-extrabold text-accent-blue"
+                        style={{
+                          marginLeft: `${t.left}%`,
+                          width: `${t.width}%`
+                        }}
+                      >
+                        {t.deadline ? t.deadline.slice(5) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {ganttTasks.length === 0 && (
+                  <div className="text-center py-12 text-[11px] text-text-muted">No Gantt tasks mapped</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'workload' && (
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
+              <h4 className="text-xs font-bold text-text-primary select-none">Employee Capacity Tracker</h4>
+              <div className="space-y-3 mt-2">
+                {allUsers.map(u => {
+                  const count = tasks.filter(t => t.assigned_to_id === Number(u.id) && t.status !== 'completed').length;
+                  const pct = Math.min(100, (count / 5) * 100);
+                  return (
+                    <div key={u.id} className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          {u.avatar ? <img src={u.avatar} className="w-4 h-4 rounded-full object-cover" alt={u.name} /> : <div className="w-4 h-4 rounded-full bg-accent-blue" />}
+                          {u.name}
+                        </span>
+                        <span className={cn("font-bold", count >= 4 ? "text-accent-red" : "text-accent-green")}>
+                          {count} active tasks ({count >= 4 ? 'Overloaded' : 'Healthy'})
+                        </span>
+                      </div>
+                      <div className="w-full bg-background-primary rounded-full h-2">
+                        <div className={cn("h-2 rounded-full", count >= 4 ? "bg-accent-red" : "bg-accent-green")} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'analytics' && (
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-6">
+              <h4 className="text-xs font-bold text-text-primary select-none">Quarter Analytics</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
+                  <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">BURNDOWN DATA</span>
+                  <ResponsiveContainer width="100%" height="90%">
+                    <AreaChart data={burndownData}>
+                      <XAxis dataKey="name" fontSize={8} />
+                      <YAxis fontSize={8} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="ideal" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.05} />
+                      <Area type="monotone" dataKey="actual" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.05} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
+                  <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">COMPLETED BY QUARTER</span>
+                  <ResponsiveContainer width="100%" height="90%">
+                    <BarChart data={velocityData}>
+                      <XAxis dataKey="name" fontSize={8} />
+                      <YAxis fontSize={8} />
+                      <Tooltip />
+                      <Bar dataKey="completed" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Supporting Widgets Row (3 columns, equal heights) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Overdue Tasks widget */}
+        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+          <div className="flex justify-between items-center mb-3 flex-shrink-0">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Overdue Tasks</h3>
+            <span onClick={() => setViewMode('table')} className="text-[10px] text-accent-blue font-bold hover:underline cursor-pointer">View All</span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+            {overdueTasksList.slice(0, 10).map(t => (
+              <div key={t.id} onClick={() => handleSelectTask(t)} className="bg-background-primary border border-border-subtle p-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer hover:border-text-muted transition-colors">
+                <div className="min-w-0">
+                  <h4 className="text-[11px] font-bold text-text-primary truncate">{t.title}</h4>
+                  <p className="text-[9px] text-accent-red font-bold flex items-center gap-0.5 mt-0.5">
+                    {t.daysOverdue} days overdue
+                  </p>
+                </div>
+                <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase flex-shrink-0", getPriorityColor(t.priority))}>
+                  {t.priority}
+                </span>
+              </div>
+            ))}
+            {overdueTasksList.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                No overdue tasks!
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: Recent Activity widget */}
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col max-h-[360px]">
-          <div className="flex justify-between items-center mb-3">
+        {/* Performance Leaderboard widget */}
+        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+          <div className="flex justify-between items-center mb-3 flex-shrink-0">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Performance Leaderboard</h3>
+            <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+            {performersList.slice(0, 10).map((p, idx) => (
+              <div key={p.user_id} className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-text-muted w-4 text-center">{idx + 1}</span>
+                {p.avatar ? (
+                  <img src={p.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={p.name} />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{p.name.charAt(0)}</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-[11px] font-bold text-text-primary truncate">{p.name}</h4>
+                </div>
+                <span className={cn(
+                  "text-xs font-bold",
+                  p.performance_pct >= 90 ? "text-accent-green" : p.performance_pct >= 80 ? "text-accent-purple" : "text-accent-orange"
+                )}>
+                  {p.performance_pct}%
+                </span>
+              </div>
+            ))}
+            {performersList.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                No scoreboard data
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity widget */}
+        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+          <div className="flex justify-between items-center mb-3 flex-shrink-0">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Recent Activity</h3>
             <span className="text-[10px] text-text-muted font-bold">View All</span>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
             {recentActivities.map(act => (
               <div key={act.id} className="flex gap-2">
                 {act.user_avatar ? (
@@ -1229,72 +1067,99 @@ export default function TaskCenterPage() {
               </div>
             ))}
             {recentActivities.length === 0 && (
-              <div className="text-center py-12 text-[11px] text-text-muted">No recent activities</div>
+              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                No recent activities
+              </div>
             )}
           </div>
         </div>
 
       </div>
 
-      {/* SECTION 13: AI Suggestions Row */}
-      <div className="flex flex-col gap-4 text-left">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text-secondary select-none">AI Suggestions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between min-h-[120px] hover:border-accent-purple transition-colors duration-200">
-            <div className="flex items-center gap-2 text-accent-purple">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Overdue Risk</span>
-            </div>
-            <p className="text-[11px] text-text-secondary leading-relaxed mt-2 flex-1">
-              {aiSuggestions.overdueRisk}
-            </p>
-            <div onClick={() => setViewMode('table')} className="text-[10px] font-bold text-accent-purple hover:underline cursor-pointer flex items-center gap-1 mt-2 w-fit">
-              View Tasks <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between min-h-[120px] hover:border-accent-blue transition-colors duration-200">
-            <div className="flex items-center gap-2 text-accent-blue">
-              <Users className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Workload Balance</span>
-            </div>
-            <p className="text-[11px] text-text-secondary leading-relaxed mt-2 flex-1">
-              {aiSuggestions.workload}
-            </p>
-            <div onClick={() => setViewMode('workload')} className="text-[10px] font-bold text-accent-blue hover:underline cursor-pointer flex items-center gap-1 mt-2 w-fit">
-              View Workload <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between min-h-[120px] hover:border-accent-green transition-colors duration-200">
-            <div className="flex items-center gap-2 text-accent-green">
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Task Optimization</span>
-            </div>
-            <p className="text-[11px] text-text-secondary leading-relaxed mt-2 flex-1">
-              {aiSuggestions.optimization}
-            </p>
-            <div className="text-[10px] font-bold text-accent-green hover:underline cursor-pointer flex items-center gap-1 mt-2 w-fit">
-              Optimize <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between min-h-[120px] hover:border-accent-red transition-colors duration-200">
-            <div className="flex items-center gap-2 text-accent-red">
-              <Layers className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Dependency Alert</span>
-            </div>
-            <p className="text-[11px] text-text-secondary leading-relaxed mt-2 flex-1">
-              {aiSuggestions.dependency}
-            </p>
-            <div className="text-[10px] font-bold text-accent-red hover:underline cursor-pointer flex items-center gap-1 mt-2 w-fit">
-              View Dependencies <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
+      {/* Employee Performance Table (Full Width) */}
+      <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Employee Performance</h3>
+          <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted">Employee</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Tasks Assigned</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Completed</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Overdue</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">In Progress</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Performance</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Trend</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allUsers.filter(u => u.username !== 'vincent_ceo').map(u => {
+                const uTasks = tasks.filter(t => t.assigned_to_id === Number(u.id));
+                const total = uTasks.length;
+                const completed = uTasks.filter(t => t.status === 'completed').length;
+                const progress = uTasks.filter(t => t.status === 'in_progress').length;
+                
+                const today = new Date().toISOString().split('T')[0];
+                const overdue = uTasks.filter(t => t.deadline && t.deadline < today && t.status !== 'completed').length;
+                const score = total > 0 ? Math.round((completed / total) * 100) : 0;
+                
+                return (
+                  <TableRow key={u.id} className="cursor-pointer hover:bg-surface-hover/30 transition-colors" onClick={() => setPerfViewUser(u)}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {u.avatar ? (
+                          <img src={u.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={u.name} />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold">{u.name.charAt(0)}</div>
+                        )}
+                        <span className="text-xs font-bold text-text-primary">{u.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center font-bold text-xs">{total}</TableCell>
+                    <TableCell className="text-center font-bold text-xs text-accent-green">{completed}</TableCell>
+                    <TableCell className="text-center font-bold text-xs text-accent-red">{overdue}</TableCell>
+                    <TableCell className="text-center font-bold text-xs text-accent-blue">{progress}</TableCell>
+                    <TableCell className="text-center">
+                      <span className={cn(
+                        "text-xs font-extrabold",
+                        score >= 90 ? "text-accent-green" : score >= 80 ? "text-accent-purple" : "text-accent-orange"
+                      )}>
+                        {score}%
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <svg className="w-12 h-5 mx-auto" viewBox="0 0 50 20">
+                        <path
+                          d={getSparklinePath(score)}
+                          fill="none"
+                          stroke={score >= 90 ? "#10B981" : score >= 80 ? "#8B5CF6" : "#F59E0B"}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button
+                        onClick={() => setPerfViewUser(u)}
+                        className="px-2.5 py-1 bg-background-primary hover:bg-surface-hover border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-colors"
+                      >
+                        View
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       </div>
+
+
 
       {/* Floating sparkles button / AI Assistant FAB */}
       <div
@@ -1451,7 +1316,7 @@ export default function TaskCenterPage() {
             <DialogTitle className="text-sm">Employee Profile & Performance</DialogTitle>
             <DialogDescription>Historical tasks execution metrics & parameters.</DialogDescription>
           </DialogHeader>
-          <PerformanceView perf={perfData} loading={perfLoading} />
+          <PerformanceView perf={perfData} loading={perfLoading} allUsers={allUsers} />
         </DialogContent>
       </Dialog>
 
@@ -2494,27 +2359,80 @@ function TransferDialog({
 function PerformanceView({
   perf,
   loading,
+  allUsers,
 }: {
   perf: WCPerformance | null;
   loading: boolean;
+  allUsers: UserType[];
 }) {
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-accent-blue" /></div>;
   if (!perf) return <div className="text-center py-12 text-[11px] text-text-muted">No performance data available</div>;
 
-  const { user, stats, tasks } = perf;
+  const { user: perfUser, stats, tasks } = perf;
+  const user = (allUsers.find(u => Number(u.id) === Number(perfUser.id)) || perfUser) as any;
+
   return (
     <div className="space-y-4 font-sans text-xs">
-      <div className="flex items-center gap-4 bg-background-secondary border border-border-subtle rounded-lg p-4">
-        {user.avatar ? (
-          <img src={user.avatar} className="w-12 h-12 rounded-full object-cover border border-border-subtle" alt={user.name} />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-accent-blue text-white flex items-center justify-center text-lg font-bold">{user.name.charAt(0)}</div>
-        )}
-        <div>
-          <h3 className="text-sm font-bold text-text-primary">{user.name}</h3>
-          <p className="text-[11px] text-text-muted">{user.role || '—'} {user.department ? `· ${user.department}` : ''}</p>
+      
+      {/* Profile Header and Contact Card */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-background-secondary border border-border-subtle rounded-xl p-4">
+        <div className="flex items-center gap-4">
+          {user.avatar ? (
+            <img src={user.avatar} className="w-14 h-14 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={user.name} />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-accent-blue text-white flex items-center justify-center text-xl font-bold flex-shrink-0">{user.name.charAt(0)}</div>
+          )}
+          <div className="min-w-0">
+            <h3 className="text-sm font-extrabold text-text-primary truncate">{user.name}</h3>
+            <p className="text-[11px] text-text-secondary font-semibold mt-0.5">{user.role || 'Team Member'} {user.department ? `· ${user.department}` : ''}</p>
+            {user.username && <p className="text-[9px] text-text-muted mt-0.5">@{user.username}</p>}
+          </div>
+        </div>
+
+        {/* Contact and Social details */}
+        <div className="flex flex-col gap-1.5 text-[10px] text-text-secondary font-medium md:text-right border-t md:border-t-0 border-border-subtle/50 pt-2 md:pt-0 flex-shrink-0">
+          {user.email && (
+            <div className="flex items-center md:justify-end gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-text-muted" />
+              <a href={`mailto:${user.email}`} className="hover:underline hover:text-text-primary transition-colors">{user.email}</a>
+            </div>
+          )}
+          {user.phone && (
+            <div className="flex items-center md:justify-end gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-text-muted" />
+              <a href={`tel:${user.phone}`} className="hover:underline hover:text-text-primary transition-colors">{user.phone}</a>
+            </div>
+          )}
+          <div className="flex items-center md:justify-end gap-2 mt-1">
+            {user.github && (
+              <a href={user.github} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-background-primary border border-border-subtle hover:text-text-primary hover:border-text-muted transition-all" title="GitHub Profile">
+                <Github className="w-3.5 h-3.5" />
+              </a>
+            )}
+            {user.linkedin && (
+              <a href={user.linkedin} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-background-primary border border-border-subtle hover:text-text-primary hover:border-text-muted transition-all" title="LinkedIn Profile">
+                <Linkedin className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* User Skills list */}
+      {user.skills && user.skills.length > 0 && (
+        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left">
+          <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">Core Skills & Expertise</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {user.skills.map((skill: string, index: number) => (
+              <span key={index} className="px-2.5 py-1 bg-background-primary border border-border-subtle rounded-md text-[10px] font-bold text-text-secondary select-none">
+                {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats metrics */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {[
           { label: 'Total', value: stats.totalTasks, accent: 'text-accent-blue' },
@@ -2530,6 +2448,8 @@ function PerformanceView({
           </div>
         ))}
       </div>
+
+      {/* Tasks table */}
       <div className="bg-background-secondary border border-border-subtle rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border-subtle text-[10px] font-bold text-text-muted uppercase tracking-wider">Recent Tasks</div>
         <Table>
