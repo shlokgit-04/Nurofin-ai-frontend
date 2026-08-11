@@ -54,6 +54,8 @@ import {
   Users,
   Trash,
   Edit,
+  Edit3,
+  History,
   ArrowRightLeft,
   Eye,
   X,
@@ -86,11 +88,13 @@ import {
 const STATUS_COLS = [
   { key: 'in_progress', label: 'In Progress', color: 'text-accent-blue', bg: 'bg-accent-blue/10' },
   { key: 'completed', label: 'Done', color: 'text-accent-green', bg: 'bg-accent-green/10' },
+  { key: 'blocked', label: 'Blocked', color: 'text-accent-red', bg: 'bg-accent-red/10' },
 ] as const;
 
 const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Done' },
+  { value: 'blocked', label: 'Blocked' },
 ];
 
 const PRIORITY_OPTIONS = [
@@ -133,6 +137,42 @@ export default function TaskCenterPage() {
 
   // Data State
   const [tasks, setTasks] = useState<WCTask[]>([]);
+  const [taskFilterTab, setTaskFilterTab] = useState<'all' | 'my'>('all');
+
+  const filteredTasks = useMemo(() => {
+    if (taskFilterTab === 'all') return tasks;
+    if (!userProfile) return tasks;
+
+    const list: any[] = [];
+    tasks.forEach(task => {
+      // 1. If main task is assigned to the current user
+      if (task.assigned_to_id != null && String(task.assigned_to_id) === String(userProfile.id)) {
+        list.push({
+          ...task,
+          subtasks: [], // Don't show nested subtasks list inside it in My Tasks
+        });
+      }
+      // 2. If any subtasks are assigned to the current user
+      if (task.subtasks && task.subtasks.length > 0) {
+        task.subtasks.forEach(sub => {
+          if (sub.assigned_to_id != null && String(sub.assigned_to_id) === String(userProfile.id)) {
+            list.push({
+              ...sub,
+              parent_title: task.title, // Add parent title info
+              project_name: task.project_name, // inherit project name
+              project_id: task.project_id,
+              deadline: sub.deadline || task.deadline, // inherit deadline if missing
+              priority: sub.priority || task.priority, // inherit priority if missing
+              assigned_to_name: sub.assigned_to_name || userProfile.name,
+              assigned_to_avatar: sub.assigned_to_avatar || userProfile.avatar,
+              subtasks: [], // Clear any subtasks
+            });
+          }
+        });
+      }
+    });
+    return list;
+  }, [tasks, taskFilterTab, userProfile]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [summary, setSummary] = useState<WCSummary | null>(null);
   const [insights, setInsights] = useState<WCInsights | null>(null);
@@ -157,6 +197,7 @@ export default function TaskCenterPage() {
   const [showCreateEdit, setShowCreateEdit] = useState(false);
   const [editingTask, setEditingTask] = useState<WCTask | null>(null);
   const [selectedTask, setSelectedTask] = useState<WCTask | null>(null);
+  const [detailDefaultTab, setDetailDefaultTab] = useState<'details' | 'history' | 'transfers'>('details');
   const [detailOpen, setDetailOpen] = useState(false);
   const [transferTask, setTransferTask] = useState<WCTask | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -209,7 +250,7 @@ export default function TaskCenterPage() {
       setAllUsers(usersData || []);
 
       if (!selectedQuarterId && quartersData && quartersData.length > 0) {
-        const active = quartersData.find(q => q.status === 'active');
+        const active = quartersData.find(q => q.status === 'active') || quartersData[0];
         if (active) setSelectedQuarterId(active.id);
       }
     } catch (err: any) {
@@ -275,9 +316,32 @@ export default function TaskCenterPage() {
     setSelectedTask(null);
   };
 
+  const [blockingTaskInfo, setBlockingTaskInfo] = useState<{ id: number; status: string } | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+
+  const handleConfirmBlock = async () => {
+    if (!blockingTaskInfo) return;
+    await workcenterService.updateStatus(blockingTaskInfo.id, blockingTaskInfo.status, blockReason);
+    const taskId = blockingTaskInfo.id;
+    setBlockingTaskInfo(null);
+    setBlockReason('');
+    await loadData();
+    if (selectedTask && selectedTask.id === taskId) {
+      await handleSelectTask({ id: taskId });
+    }
+  };
+
   const handleStatusChange = async (id: number, status: string) => {
+    if (status === 'blocked') {
+      setBlockingTaskInfo({ id, status });
+      setBlockReason('');
+      return;
+    }
     await workcenterService.updateStatus(id, status);
     await loadData();
+    if (selectedTask && selectedTask.id === id) {
+      await handleSelectTask({ id });
+    }
   };
 
   const handleSelectTask = async (taskItem: { id: number }) => {
@@ -689,11 +753,9 @@ export default function TaskCenterPage() {
                 className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
               >
                 <option value="">All Statuses</option>
-                <option value="todo">To Do</option>
                 <option value="in_progress">In Progress</option>
-                <option value="review">Review</option>
+                <option value="completed">Done</option>
                 <option value="blocked">Blocked</option>
-                <option value="completed">Completed</option>
               </select>
               <select
                 value={priorityFilter}
@@ -748,10 +810,38 @@ export default function TaskCenterPage() {
             </div>
           </div>
 
-          {/* Main Layout: Full Width My Tasks */}
+          {/* Main Layout: Full Width Tasks */}
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-3">
-              <h3 className="text-base font-extrabold select-none">My Tasks</h3>
+              <div className="flex items-center gap-4">
+                <h3 className="text-base font-extrabold select-none">
+                  {taskFilterTab === 'all' ? 'All Tasks' : 'My Tasks'}
+                </h3>
+                <div className="flex items-center bg-background-secondary p-0.5 rounded-lg border border-border-subtle">
+                  <button
+                    onClick={() => setTaskFilterTab('all')}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                      taskFilterTab === 'all'
+                        ? "bg-accent-blue text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary"
+                    )}
+                  >
+                    All Tasks
+                  </button>
+                  <button
+                    onClick={() => setTaskFilterTab('my')}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200",
+                      taskFilterTab === 'my'
+                        ? "bg-accent-blue text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary"
+                    )}
+                  >
+                    My Tasks
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setDefaultNewTaskStatus('todo');
@@ -766,9 +856,28 @@ export default function TaskCenterPage() {
 
             <div className="min-h-[400px]">
               {viewMode === 'kanban' ? (
-                <GroupedTaskFeed tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} onAddTaskInStatus={handleAddTaskInStatus} />
+                <GroupedTaskFeed 
+                  tasks={filteredTasks} 
+                  onSelectTask={(taskItem) => {
+                    setDetailDefaultTab('details');
+                    handleSelectTask(taskItem);
+                  }} 
+                  onStatusChange={handleStatusChange} 
+                  onAddTaskInStatus={handleAddTaskInStatus} 
+                  onRefresh={loadData} 
+                  users={allUsers}
+                  onEditTask={(task) => {
+                    setEditingTask(task);
+                    setShowCreateEdit(true);
+                  }}
+                  onViewHistory={(task) => {
+                    setDetailDefaultTab('history');
+                    handleSelectTask({ id: task.id });
+                  }}
+                  onDeleteTask={handleDeleteTask}
+                />
               ) : (
-                <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
+                <TaskTableView tasks={filteredTasks} onSelectTask={handleSelectTask} />
               )}
             </div>
           </div>
@@ -1145,6 +1254,7 @@ export default function TaskCenterPage() {
         allUsers={allUsers}
         onRefreshTask={id => handleSelectTask({ id })}
         onSelectTask={handleSelectTask}
+        defaultTab={detailDefaultTab}
       />
 
       {/* Transfer Dialog */}
@@ -1155,6 +1265,43 @@ export default function TaskCenterPage() {
         onSave={handleTransfer}
         allUsers={allUsers}
       />
+
+      {/* Block Reason Dialog */}
+      <Dialog open={!!blockingTaskInfo} onOpenChange={() => setBlockingTaskInfo(null)}>
+        <DialogContent className="max-w-sm p-5 font-sans">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-1 text-accent-red">
+              <AlertTriangle className="w-4 h-4" /> Block Task
+            </DialogTitle>
+            <DialogDescription className="text-xs text-text-secondary mt-1">
+              Please enter the reason for blocking this task.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3">
+            <Textarea
+              value={blockReason}
+              onChange={e => setBlockReason(e.target.value)}
+              placeholder="E.g., Waiting for client API credentials..."
+              className="min-h-[80px] text-xs bg-background-secondary border border-border-subtle"
+            />
+          </div>
+          <DialogFooter className="flex justify-end gap-2 text-xs">
+            <button
+              onClick={() => setBlockingTaskInfo(null)}
+              className="px-3 py-1.5 border border-border-subtle rounded text-text-secondary hover:text-text-primary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmBlock}
+              disabled={!blockReason.trim()}
+              className="px-3 py-1.5 bg-accent-red hover:bg-accent-red/90 text-white rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Block Task
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Quarter Management Dialog */}
       <Dialog open={showQuarterModal} onOpenChange={(val) => { setShowQuarterModal(val); if (!val) setEditingQuarter(null); }}>
@@ -1276,15 +1423,26 @@ function GroupedTaskFeed({
   onSelectTask,
   onStatusChange,
   onAddTaskInStatus,
+  onRefresh,
+  users,
+  onEditTask,
+  onViewHistory,
+  onDeleteTask,
 }: {
   tasks: WCTask[];
   onSelectTask: (t: any) => void;
   onStatusChange: (id: number, status: string) => void;
   onAddTaskInStatus?: (status: string) => void;
+  onRefresh?: () => void;
+  users?: UserType[];
+  onEditTask?: (t: WCTask) => void;
+  onViewHistory?: (t: WCTask) => void;
+  onDeleteTask?: (id: number) => void;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     in_progress: true,
     completed: true,
+    blocked: true,
   });
 
   const toggleGroup = (groupKey: string) => {
@@ -1298,12 +1456,18 @@ function GroupedTaskFeed({
     setExpandedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
   };
 
+  const [inlineAddSubtaskForId, setInlineAddSubtaskForId] = useState<number | null>(null);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
+
   return (
     <div className="space-y-4">
       {STATUS_COLS.map(col => {
         const colTasks = col.key === 'in_progress'
-          ? tasks.filter(t => t.status !== 'completed')
-          : tasks.filter(t => t.status === 'completed');
+          ? tasks.filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'blocked')
+          : col.key === 'completed'
+            ? tasks.filter(t => t.status === 'completed' || t.status === 'done')
+            : tasks.filter(t => t.status === 'blocked');
         const isGroupExpanded = expandedGroups[col.key];
 
         return (
@@ -1327,7 +1491,7 @@ function GroupedTaskFeed({
             {/* Tasks List */}
             {isGroupExpanded && (
               <div className="divide-y divide-border-subtle/50 bg-background-primary">
-                {colTasks.map(task => {
+                {colTasks.map((task, idx) => {
                   const today = new Date().toISOString().split('T')[0];
                   const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed';
                   const hasSubtasks = task.subtasks && task.subtasks.length > 0;
@@ -1344,24 +1508,24 @@ function GroupedTaskFeed({
                       {/* Main Task Metadata Row */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          {hasSubtasks && (
-                            <button
-                              onClick={e => toggleExpandTask(task.id, e)}
-                              className="p-1 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
-                            >
-                              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
-                            </button>
-                          )}
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
-                              {task.title}
+                              {idx + 1}. {task.title}
                             </h4>
-                            {task.project_name && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded-full mt-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
-                                {task.project_name}
-                              </span>
-                            )}
+                            <div className="flex flex-wrap gap-2 mt-1.5">
+                              {task.parent_title && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-accent-purple bg-accent-purple/5 border border-accent-purple/10 px-2 py-0.5 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-accent-purple animate-pulse" />
+                                  Subtask of: {task.parent_title}
+                                </span>
+                              )}
+                              {task.project_name && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded-full">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
+                                  {task.project_name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -1409,6 +1573,32 @@ function GroupedTaskFeed({
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
                           )}
 
+                          {/* View Subtask button */}
+                          {hasSubtasks && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                            >
+                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                              {isTaskExpanded ? 'Hide subtask' : 'View sub task'}
+                            </button>
+                          )}
+
+                          {/* Add sub task button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInlineAddSubtaskForId(inlineAddSubtaskForId === task.id ? null : task.id);
+                              setNewSubtaskTitle('');
+                            }}
+                            className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
+                          </button>
+
                           {/* Quick Status Dropdown */}
                           <select
                             value={task.status}
@@ -1419,8 +1609,88 @@ function GroupedTaskFeed({
                               <option key={o.value} value={o.value}>{o.label}</option>
                             ))}
                           </select>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-1">
+                            {onEditTask && (
+                              <button 
+                                onClick={() => onEditTask(task)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                                title="Edit"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onViewHistory && (
+                              <button 
+                                onClick={() => onViewHistory(task)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                                title="History"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onDeleteTask && (
+                              <button 
+                                onClick={() => onDeleteTask(task.id)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                                title="Delete"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Inline Add Subtask input */}
+                      {inlineAddSubtaskForId === task.id && (
+                        <div className="px-4 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="text" 
+                            placeholder="Subtask title..." 
+                            value={newSubtaskTitle} 
+                            onChange={e => setNewSubtaskTitle(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
+                          {users && (
+                            <select
+                              value={newSubtaskAssigneeId}
+                              onChange={e => setNewSubtaskAssigneeId(e.target.value)}
+                              className="bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary outline-none focus:border-accent-blue cursor-pointer font-bold"
+                            >
+                              <option value="">Assign To...</option>
+                              {users.map(u => (
+                                <option key={u.id} value={String(u.id)}>{u.name}</option>
+                              ))}
+                            </select>
+                          )}
+                          <button 
+                            onClick={async () => {
+                              if (!newSubtaskTitle.trim()) return;
+                              try {
+                                await workcenterService.createTask({
+                                  title: newSubtaskTitle,
+                                  parent_id: task.id,
+                                  project_id: task.project_id || undefined,
+                                  quarter_id: task.quarter_id || undefined,
+                                  priority: 'medium',
+                                  assigned_to_id: newSubtaskAssigneeId ? Number(newSubtaskAssigneeId) : undefined,
+                                });
+                                setNewSubtaskTitle('');
+                                setNewSubtaskAssigneeId('');
+                                setInlineAddSubtaskForId(null);
+                                if (onRefresh) onRefresh();
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
 
                       {/* Expandable subtasks list */}
                       {hasSubtasks && isTaskExpanded && (
@@ -1559,6 +1829,7 @@ function TaskDetailDialog({
   allUsers,
   onRefreshTask,
   onSelectTask,
+  defaultTab,
 }: {
   task: WCTask | null;
   open: boolean;
@@ -1571,10 +1842,12 @@ function TaskDetailDialog({
   allUsers: UserType[];
   onRefreshTask: (id: number) => void;
   onSelectTask?: (taskItem: { id: number }) => void;
+  defaultTab?: 'details' | 'history' | 'transfers';
 }) {
   const [history, setHistory] = useState<WCHistoryEntry[]>([]);
   const [transfers, setTransfers] = useState<WCTransfer[]>([]);
-  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'transfers'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'transfers'>(defaultTab || 'details');
+
   const [loading, setLoading] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
@@ -1608,7 +1881,7 @@ function TaskDetailDialog({
   useEffect(() => {
     if (!task || !open) return;
     setLoading(true);
-    setActiveTab('details');
+    setActiveTab(defaultTab || 'details');
     Promise.all([
       workcenterService.getHistory(task.id).catch(() => []),
       workcenterService.getTransfers(task.id).catch(() => []),
@@ -1617,7 +1890,7 @@ function TaskDetailDialog({
       setTransfers(t);
       setLoading(false);
     });
-  }, [task?.id, open]);
+  }, [task?.id, open, defaultTab]);
 
   if (!task) return null;
 
