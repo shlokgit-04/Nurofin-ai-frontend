@@ -43,7 +43,17 @@ export interface WCTask {
   parent_id: number | null;
   quarter_id: number | null;
   meeting_id: number | null;
-  subtasks: { id: number; title: string; status: string; assigned_to_id: number | null; assigned_to_name: string | null }[];
+  subtasks: {
+    id: number;
+    title: string;
+    status: string;
+    assigned_to_id: number | null;
+    assigned_to_name: string | null;
+    priority?: string;
+    deadline?: string | null;
+    assigned_to_avatar?: string | null;
+  }[];
+  parent_title?: string | null;
   created_at: string | null;
 }
 
@@ -241,8 +251,12 @@ export const workcenterService = {
   deleteTask: (taskId: number) =>
     api(`${BASE}/${taskId}`, { method: 'DELETE' }),
 
-  updateStatus: (taskId: number, status: string) =>
-    api(`${BASE}/${taskId}/status?status=${status}`, { method: 'PUT' }),
+  updateStatus: (taskId: number, status: string, reason?: string) => {
+    const qs = new URLSearchParams();
+    qs.append('status', status);
+    if (reason) qs.append('reason', reason);
+    return api(`${BASE}/${taskId}/status?${qs.toString()}`, { method: 'PUT' });
+  },
 
   bulkUpdateStatus: (taskIds: number[], status: string) => {
     const qs = new URLSearchParams();

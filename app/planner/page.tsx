@@ -230,7 +230,7 @@ export default function PlannerPage() {
         await tasksService.createTask({
           title: newEventTitle,
           description: '',
-          status: 'todo',
+          status: 'in_progress',
           priority: 'medium',
           dueDate: newEventDate,
           assigneeId: selectedUserId.toString()
@@ -267,7 +267,7 @@ export default function PlannerPage() {
       await tasksService.createTask({
         title: newTaskTitle,
         description: newTaskDescription,
-        status: 'todo',
+        status: 'in_progress',
         priority: newTaskPriority,
         dueDate: newTaskDueDate,
         assigneeId: selectedUserId.toString()

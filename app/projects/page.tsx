@@ -14,7 +14,8 @@ import {
   Percent, 
   Activity, 
   Clock, 
-  AlertCircle, 
+  AlertCircle,
+  AlertTriangle,
   CheckCircle,
   Plus,
   Loader2,
@@ -74,7 +75,7 @@ export default function ProjectsPage() {
   const [quickTaskDescription, setQuickTaskDescription] = useState('');
   const [quickTaskAssignee, setQuickTaskAssignee] = useState('');
   const [quickTaskDueDate, setQuickTaskDueDate] = useState('');
-  const [quickTaskStatus, setQuickTaskStatus] = useState('todo');
+  const [quickTaskStatus, setQuickTaskStatus] = useState('in_progress');
 
   // Project Tasks from workcenter (Phase 3 — single source of truth)
   const [projectTasks, setProjectTasks] = useState<WCTask[]>([]);
@@ -82,9 +83,10 @@ export default function ProjectsPage() {
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set());
   const [addSubtaskForId, setAddSubtaskForId] = useState<number | null>(null);
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
   // Inline edit state
   const [editingWCTask, setEditingWCTask] = useState<WCTask | null>(null);
-  const [editForm, setEditForm] = useState<{title: string; description: string; priority: string; status: string; deadline: string; assigned_to_id: string}>({title:'', description:'', priority:'medium', status:'todo', deadline:'', assigned_to_id:''});
+  const [editForm, setEditForm] = useState<{title: string; description: string; priority: string; status: string; deadline: string; assigned_to_id: string}>({title:'', description:'', priority:'medium', status:'in_progress', deadline:'', assigned_to_id:''});
   // Transfer state
   const [transferWCTask, setTransferWCTask] = useState<WCTask | null>(null);
   const [transferTo, setTransferTo] = useState('');
@@ -290,8 +292,10 @@ export default function ProjectsPage() {
         title: subtaskTitle,
         parent_id: parentId,
         project_id: parseInt(selectedProjectId),
+        assigned_to_id: subtaskAssigneeId ? parseInt(subtaskAssigneeId) : undefined,
       });
       setSubtaskTitle('');
+      setSubtaskAssigneeId('');
       setAddSubtaskForId(null);
       await loadProjectTasks(selectedProjectId);
       const refreshed = await projectsService.getProjects();
@@ -301,7 +305,34 @@ export default function ProjectsPage() {
     }
   };
 
+  const [blockingTaskInfo, setBlockingTaskInfo] = useState<{ id: number; status: string } | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+
+  const handleConfirmBlock = async () => {
+    if (!blockingTaskInfo) return;
+    try {
+      await workcenterService.updateStatus(blockingTaskInfo.id, blockingTaskInfo.status, blockReason);
+      const taskId = blockingTaskInfo.id;
+      setBlockingTaskInfo(null);
+      setBlockReason('');
+      await loadProjectTasks(selectedProjectId);
+      const refreshed = await projectsService.getProjects();
+      setProjects(refreshed);
+      if (selectedSubtask && selectedSubtask.id === taskId) {
+        const updated = await workcenterService.getTask(taskId);
+        setSelectedSubtask(updated);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleWCStatusChange = async (taskId: number, newStatus: string) => {
+    if (newStatus === 'blocked') {
+      setBlockingTaskInfo({ id: taskId, status: newStatus });
+      setBlockReason('');
+      return;
+    }
     try {
       await workcenterService.updateStatus(taskId, newStatus);
       await loadProjectTasks(selectedProjectId);
@@ -857,10 +888,9 @@ export default function ProjectsPage() {
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-text-secondary uppercase">Status</label>
                           <select value={quickTaskStatus} onChange={(e) => setQuickTaskStatus(e.target.value)} className="w-full h-8 bg-background-secondary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue transition-colors cursor-pointer font-medium">
-                            <option value="todo">To Do</option>
                             <option value="in_progress">In Progress</option>
-                            <option value="review">Review</option>
-                            <option value="completed">Completed</option>
+                            <option value="completed">Done</option>
+                            <option value="blocked">Blocked</option>
                           </select>
                         </div>
                       </div>
@@ -934,12 +964,16 @@ export default function ProjectsPage() {
                         onAddSubtask={(id) => {
                           setAddSubtaskForId(addSubtaskForId === id ? null : id);
                           setSubtaskTitle('');
+                          setSubtaskAssigneeId('');
                         }}
                         addSubtaskForId={addSubtaskForId}
                         setAddSubtaskForId={setAddSubtaskForId}
                         subtaskTitle={subtaskTitle}
                         setSubtaskTitle={setSubtaskTitle}
+                        subtaskAssigneeId={subtaskAssigneeId}
+                        setSubtaskAssigneeId={setSubtaskAssigneeId}
                         handleAddSubtaskSubmit={handleAddSubtask}
+                        users={availableUsers}
                       />
                     </div>
                   )}
@@ -996,7 +1030,7 @@ export default function ProjectsPage() {
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Change Status</span>
                         <div className="flex gap-1.5 flex-wrap">
-                          {['todo', 'in_progress', 'review', 'completed', 'blocked'].map(s => (
+                          {['in_progress', 'completed', 'blocked'].map(s => (
                             <button
                               key={s}
                               onClick={async () => {
@@ -1011,7 +1045,7 @@ export default function ProjectsPage() {
                                   : 'bg-background-primary text-text-secondary border-border-subtle hover:border-text-muted'
                               )}
                             >
-                              {s.replace('_', ' ')}
+                              {s === 'completed' ? 'Done' : s.replace('_', ' ')}
                             </button>
                           ))}
                         </div>
@@ -1078,7 +1112,7 @@ export default function ProjectsPage() {
                       <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Description</label><textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} rows={2} className="w-full bg-background-primary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" /></div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Priority</label><select value={editForm.priority} onChange={e => setEditForm({...editForm, priority: e.target.value})} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer font-medium"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
-                        <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Status</label><select value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer font-medium"><option value="todo">To Do</option><option value="in_progress">In Progress</option><option value="review">Review</option><option value="completed">Completed</option><option value="blocked">Blocked</option></select></div>
+                        <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Status</label><select value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer font-medium"><option value="in_progress">In Progress</option><option value="completed">Done</option><option value="blocked">Blocked</option></select></div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Deadline</label><input type="date" value={editForm.deadline} onChange={e => setEditForm({...editForm, deadline: e.target.value})} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer" /></div>
@@ -1143,6 +1177,43 @@ export default function ProjectsPage() {
                   </DialogContent>
                 </Dialog>
               )}
+
+              {/* Block Reason Dialog */}
+              <Dialog open={!!blockingTaskInfo} onOpenChange={() => setBlockingTaskInfo(null)}>
+                <DialogContent className="max-w-sm bg-background-secondary border border-border-subtle rounded-2xl shadow-2xl p-5 font-sans">
+                  <DialogHeader>
+                    <DialogTitle className="text-sm font-extrabold flex items-center gap-1 text-accent-red">
+                      <AlertTriangle className="w-4 h-4" /> Block Task
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-text-secondary mt-1">
+                      Please enter the reason for blocking this task.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-3">
+                    <Textarea
+                      value={blockReason}
+                      onChange={e => setBlockReason(e.target.value)}
+                      placeholder="E.g., Waiting for client API credentials..."
+                      className="min-h-[80px] text-xs bg-background-primary border border-border-subtle"
+                    />
+                  </div>
+                  <DialogFooter className="flex justify-end gap-2 text-xs">
+                    <button
+                      onClick={() => setBlockingTaskInfo(null)}
+                      className="px-3 py-1.5 border border-border-subtle rounded text-text-secondary hover:text-text-primary"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmBlock}
+                      disabled={!blockReason.trim()}
+                      className="px-3 py-1.5 bg-accent-red hover:bg-accent-red/90 text-white rounded font-extrabold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Block Task
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Team Tab */}
               {activeWorkspaceTab === 'team' && (
@@ -1610,11 +1681,13 @@ export default function ProjectsPage() {
 const STATUS_COLS = [
   { key: 'in_progress', label: 'In Progress', color: 'text-accent-blue', bg: 'bg-accent-blue/10' },
   { key: 'completed', label: 'Done', color: 'text-accent-green', bg: 'bg-accent-green/10' },
+  { key: 'blocked', label: 'Blocked', color: 'text-accent-red', bg: 'bg-accent-red/10' },
 ] as const;
 
 const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Done' },
+  { value: 'blocked', label: 'Blocked' },
 ];
 
 function GroupedTaskFeed({
@@ -1631,7 +1704,10 @@ function GroupedTaskFeed({
   setAddSubtaskForId,
   subtaskTitle,
   setSubtaskTitle,
+  subtaskAssigneeId,
+  setSubtaskAssigneeId,
   handleAddSubtaskSubmit,
+  users,
 }: {
   tasks: WCTask[];
   onSelectTask: (t: any) => void;
@@ -1646,11 +1722,15 @@ function GroupedTaskFeed({
   setAddSubtaskForId?: (id: number | null) => void;
   subtaskTitle?: string;
   setSubtaskTitle?: (title: string) => void;
+  subtaskAssigneeId?: string;
+  setSubtaskAssigneeId?: (id: string) => void;
   handleAddSubtaskSubmit?: (parentId: number) => void;
+  users?: { id: number | string; name: string }[];
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     in_progress: true,
     completed: true,
+    blocked: true,
   });
 
   const toggleGroup = (groupKey: string) => {
@@ -1677,8 +1757,10 @@ function GroupedTaskFeed({
     <div className="space-y-4">
       {STATUS_COLS.map(col => {
         const colTasks = col.key === 'in_progress'
-          ? tasks.filter(t => t.status !== 'completed' && t.status !== 'done')
-          : tasks.filter(t => t.status === 'completed' || t.status === 'done');
+          ? tasks.filter(t => t.status !== 'completed' && t.status !== 'done' && t.status !== 'blocked')
+          : col.key === 'completed'
+            ? tasks.filter(t => t.status === 'completed' || t.status === 'done')
+            : tasks.filter(t => t.status === 'blocked');
         const isGroupExpanded = expandedGroups[col.key];
 
         return (
@@ -1690,7 +1772,7 @@ function GroupedTaskFeed({
             >
               <div className="flex items-center gap-2.5">
                 <ChevronDown className={cn("w-4 h-4 text-text-muted transition-transform duration-200", isGroupExpanded ? "rotate-0" : "-rotate-90")} />
-                <div className={cn("w-2.5 h-2.5 rounded-full", col.key === 'in_progress' ? 'bg-accent-blue' : 'bg-accent-green')} />
+                <div className={cn("w-2.5 h-2.5 rounded-full", col.color, col.bg)} />
                 <span className="text-xs font-bold text-text-primary uppercase tracking-wider">{col.label}</span>
                 <span className="text-[10px] bg-background-primary border border-border-subtle px-2.5 py-0.5 rounded-full text-text-secondary font-bold">
                   {colTasks.length} {colTasks.length === 1 ? 'task' : 'tasks'}
@@ -1815,15 +1897,7 @@ function GroupedTaskFeed({
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {onTransferTask && (
-                              <button 
-                                onClick={() => onTransferTask(task)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-orange transition-colors" 
-                                title="Transfer"
-                              >
-                                <ArrowRightLeft className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+
                             {onViewHistory && (
                               <button 
                                 onClick={() => onViewHistory(task)} 
@@ -1848,7 +1922,7 @@ function GroupedTaskFeed({
 
                       {/* Inline Add Subtask input */}
                       {addSubtaskForId === task.id && setSubtaskTitle && handleAddSubtaskSubmit && (
-                        <div className="px-4 pb-3 flex items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
+                        <div className="px-4 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
                           <input 
                             type="text" 
                             placeholder="Subtask title..." 
@@ -1856,6 +1930,18 @@ function GroupedTaskFeed({
                             onChange={e => setSubtaskTitle(e.target.value)} 
                             className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
                           />
+                          {users && setSubtaskAssigneeId && (
+                            <select
+                              value={subtaskAssigneeId || ''}
+                              onChange={e => setSubtaskAssigneeId(e.target.value)}
+                              className="bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary outline-none focus:border-accent-blue cursor-pointer font-bold"
+                            >
+                              <option value="">Assign To...</option>
+                              {users.map(u => (
+                                <option key={u.id} value={String(u.id)}>{u.name}</option>
+                              ))}
+                            </select>
+                          )}
                           <button 
                             onClick={() => handleAddSubtaskSubmit(task.id)} 
                             className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
