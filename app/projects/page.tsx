@@ -877,86 +877,70 @@ export default function ProjectsPage() {
                   ) : projectTasks.length === 0 ? (
                     <div className="text-center py-8 text-xs text-text-muted">No tasks assigned to this project yet. Create one above.</div>
                   ) : (
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                      {projectTasks.map(task => {
-                        const isExpanded = expandedTaskIds.has(task.id);
-                        const subtasks = task.subtasks || [];
-                        const completedSubs = subtasks.filter(s => s.status === 'completed' || s.status === 'done').length;
-                        const isCompleted = task.status === 'completed' || task.status === 'done';
-                        return (
-                          <div key={task.id} className="border border-border-subtle rounded-xl overflow-hidden bg-background-primary">
-                            {/* Parent Task Row */}
-                            <div className={cn("p-4 flex items-center justify-between gap-3", isCompleted && "opacity-75")}>
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                {subtasks.length > 0 ? (
-                                  <button onClick={() => toggleExpand(task.id)} className="text-text-muted hover:text-text-primary transition-colors flex-shrink-0">
-                                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                  </button>
-                                ) : <div className="w-4" />}
-                                <input type="checkbox" checked={isCompleted} onChange={() => handleWCStatusChange(task.id, isCompleted ? 'todo' : 'completed')} className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue w-4 h-4 cursor-pointer flex-shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className={cn("text-xs font-extrabold text-text-primary truncate", isCompleted && "line-through text-text-muted font-normal")}>{task.title}</span>
-                                    <span className={cn("text-[8px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded border", task.priority === 'high' || task.priority === 'critical' ? 'text-accent-red bg-accent-red/10 border-accent-red/20' : task.priority === 'medium' ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20' : 'text-text-muted bg-surface-card border-border-subtle/50')}>{task.priority}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3 mt-1 text-[10px] text-text-muted font-semibold">
-                                    {task.assigned_to_name && <span>👤 {task.assigned_to_name}</span>}
-                                    {task.deadline && <span>📅 {task.deadline}</span>}
-                                    {subtasks.length > 0 && <span className="text-accent-blue">{completedSubs}/{subtasks.length} subtasks</span>}
-                                    <span className="font-black text-accent-blue">{Math.round(task.progress || 0)}%</span>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Action buttons */}
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button onClick={() => { setEditingWCTask(task); setEditForm({ title: task.title, description: task.description || '', priority: task.priority, status: task.status, deadline: task.deadline || '', assigned_to_id: task.assigned_to_id ? String(task.assigned_to_id) : '' }); }} className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => { setTransferWCTask(task); setTransferTo(''); setTransferReason(''); }} className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-orange transition-colors" title="Transfer"><ArrowRightLeft className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => handleViewHistory(task)} className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" title="History"><History className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => setAddSubtaskForId(addSubtaskForId === task.id ? null : task.id)} className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" title="Add Subtask"><Plus className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => handleWCDeleteTask(task.id)} className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" title="Delete"><Trash className="w-3.5 h-3.5" /></button>
-                              </div>
-                            </div>
-
-                            {/* Inline Add Subtask */}
-                            {addSubtaskForId === task.id && (
-                              <div className="px-4 pb-3 flex items-center gap-2 pl-14">
-                                <input type="text" placeholder="Subtask title..." value={subtaskTitle} onChange={e => setSubtaskTitle(e.target.value)} className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" />
-                                <button onClick={() => handleAddSubtask(task.id)} className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors">Add</button>
-                              </div>
-                            )}
-
-                            {/* Subtasks (expanded) */}
-                            {isExpanded && subtasks.length > 0 && (
-                              <div className="border-t border-border-subtle/50 bg-background-secondary/50">
-                                {subtasks.map(sub => {
-                                  const subDone = sub.status === 'completed' || sub.status === 'done';
-                                  return (
-                                    <div key={sub.id} className="px-4 py-2.5 flex items-center justify-between gap-3 pl-14 border-b border-border-subtle/30 last:border-b-0 cursor-pointer hover:bg-background-primary/60 transition-colors" onClick={async () => { try { const full = await workcenterService.getTask(sub.id); setSelectedSubtask(full); } catch { /* use minimal data */ setSelectedSubtask({ ...sub, description: null, priority: 'medium', deadline: null, start_date: null, estimated_hours: null, progress: 0, assigned_to_avatar: null, assigned_by_id: null, assigned_by_name: null, reviewer_id: null, reviewer_name: null, project_id: null, project_name: null, parent_id: task.id, quarter_id: null, meeting_id: null, subtasks: [], created_at: null } as WCTask); } }}>
-                                      <div className="flex items-center gap-3 min-w-0">
-                                        <input type="checkbox" checked={subDone} onChange={() => handleWCStatusChange(sub.id, subDone ? 'todo' : 'completed')} className="rounded border-border-subtle text-accent-blue focus:ring-accent-blue w-3.5 h-3.5 cursor-pointer" />
-                                        <span className={cn("text-[11px] font-bold text-text-primary truncate", subDone && "line-through text-text-muted font-normal")}>{sub.title}</span>
-                                        {sub.assigned_to_name && <span className="text-[9px] text-text-muted font-semibold">→ {sub.assigned_to_name}</span>}
-                                      </div>
-                                      <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                        <button onClick={() => handleWCDeleteTask(sub.id)} className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"><Trash className="w-3 h-3" /></button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Progress bar */}
-                            {subtasks.length > 0 && (
-                              <div className="px-4 pb-3 pt-1">
-                                <div className="h-1 bg-background-primary rounded-full overflow-hidden">
-                                  <div className="h-full bg-accent-blue rounded-full transition-all duration-500" style={{ width: `${task.progress || 0}%` }} />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-3">
+                      <GroupedTaskFeed
+                        tasks={projectTasks}
+                        onSelectTask={async (t) => {
+                          try {
+                            const full = await workcenterService.getTask(t.id);
+                            setSelectedSubtask(full);
+                          } catch {
+                            setSelectedSubtask({
+                              ...t,
+                              description: null,
+                              priority: 'medium',
+                              deadline: null,
+                              start_date: null,
+                              estimated_hours: null,
+                              progress: 0,
+                              assigned_to_avatar: null,
+                              assigned_by_id: null,
+                              assigned_by_name: null,
+                              reviewer_id: null,
+                              reviewer_name: null,
+                              project_id: null,
+                              project_name: null,
+                              parent_id: t.parent_id || null,
+                              quarter_id: null,
+                              meeting_id: null,
+                              subtasks: [],
+                              created_at: null,
+                            } as WCTask);
+                          }
+                        }}
+                        onStatusChange={handleWCStatusChange}
+                        onAddTaskInStatus={(status) => {
+                          setQuickTaskStatus(status);
+                          setQuickTaskOpen(true);
+                        }}
+                        onEditTask={(task) => {
+                          setEditingWCTask(task);
+                          setEditForm({
+                            title: task.title,
+                            description: task.description || '',
+                            priority: task.priority,
+                            status: task.status,
+                            deadline: task.deadline || '',
+                            assigned_to_id: task.assigned_to_id ? String(task.assigned_to_id) : '',
+                          });
+                        }}
+                        onDeleteTask={handleWCDeleteTask}
+                        onTransferTask={(task) => {
+                          setTransferWCTask(task);
+                          setTransferTo('');
+                          setTransferReason('');
+                        }}
+                        onViewHistory={handleViewHistory}
+                        onAddSubtask={(id) => {
+                          setAddSubtaskForId(addSubtaskForId === id ? null : id);
+                          setSubtaskTitle('');
+                        }}
+                        addSubtaskForId={addSubtaskForId}
+                        setAddSubtaskForId={setAddSubtaskForId}
+                        subtaskTitle={subtaskTitle}
+                        setSubtaskTitle={setSubtaskTitle}
+                        handleAddSubtaskSubmit={handleAddSubtask}
+                      />
                     </div>
                   )}
                 </div>
@@ -1619,5 +1603,326 @@ export default function ProjectsPage() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* ─── Grouped Task Feed for Projects ─── */
+const STATUS_COLS = [
+  { key: 'in_progress', label: 'In Progress', color: 'text-accent-blue', bg: 'bg-accent-blue/10' },
+  { key: 'completed', label: 'Done', color: 'text-accent-green', bg: 'bg-accent-green/10' },
+] as const;
+
+const STATUS_OPTIONS = [
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'completed', label: 'Done' },
+];
+
+function GroupedTaskFeed({
+  tasks,
+  onSelectTask,
+  onStatusChange,
+  onAddTaskInStatus,
+  onEditTask,
+  onDeleteTask,
+  onTransferTask,
+  onViewHistory,
+  onAddSubtask,
+  addSubtaskForId,
+  setAddSubtaskForId,
+  subtaskTitle,
+  setSubtaskTitle,
+  handleAddSubtaskSubmit,
+}: {
+  tasks: WCTask[];
+  onSelectTask: (t: any) => void;
+  onStatusChange: (id: number, status: string) => void;
+  onAddTaskInStatus?: (status: string) => void;
+  onEditTask?: (t: WCTask) => void;
+  onDeleteTask?: (id: number) => void;
+  onTransferTask?: (t: WCTask) => void;
+  onViewHistory?: (t: WCTask) => void;
+  onAddSubtask?: (id: number) => void;
+  addSubtaskForId?: number | null;
+  setAddSubtaskForId?: (id: number | null) => void;
+  subtaskTitle?: string;
+  setSubtaskTitle?: (title: string) => void;
+  handleAddSubtaskSubmit?: (parentId: number) => void;
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    in_progress: true,
+    completed: true,
+  });
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
+  const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
+
+  const toggleExpandTask = (taskId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
+  };
+
+  const getPriorityColorLocal = (priority: string) => {
+    switch (priority) {
+      case 'critical': return 'text-accent-red bg-accent-red/10 border-accent-red/20';
+      case 'high': return 'text-accent-orange bg-accent-orange/10 border-accent-orange/20';
+      case 'medium': return 'text-accent-blue bg-accent-blue/10 border-accent-blue/20';
+      default: return 'text-text-muted bg-surface-card border-border-subtle/50';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {STATUS_COLS.map(col => {
+        const colTasks = col.key === 'in_progress'
+          ? tasks.filter(t => t.status !== 'completed' && t.status !== 'done')
+          : tasks.filter(t => t.status === 'completed' || t.status === 'done');
+        const isGroupExpanded = expandedGroups[col.key];
+
+        return (
+          <div key={col.key} className="bg-background-secondary border border-border-subtle rounded-xl overflow-hidden transition-all shadow-sm">
+            {/* Status Header Bar */}
+            <div 
+              onClick={() => toggleGroup(col.key)}
+              className="p-3 bg-surface-card/10 flex items-center justify-between cursor-pointer select-none hover:bg-surface-card/20 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <ChevronDown className={cn("w-4 h-4 text-text-muted transition-transform duration-200", isGroupExpanded ? "rotate-0" : "-rotate-90")} />
+                <div className={cn("w-2.5 h-2.5 rounded-full", col.key === 'in_progress' ? 'bg-accent-blue' : 'bg-accent-green')} />
+                <span className="text-xs font-bold text-text-primary uppercase tracking-wider">{col.label}</span>
+                <span className="text-[10px] bg-background-primary border border-border-subtle px-2.5 py-0.5 rounded-full text-text-secondary font-bold">
+                  {colTasks.length} {colTasks.length === 1 ? 'task' : 'tasks'}
+                </span>
+              </div>
+
+            </div>
+
+            {/* Tasks List */}
+            {isGroupExpanded && (
+              <div className="divide-y divide-border-subtle/50 bg-background-primary">
+                {colTasks.map(task => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed' && task.status !== 'done';
+                  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+                  const isTaskExpanded = !!expandedTasks[task.id];
+                  const completedSubtasks = task.subtasks ? task.subtasks.filter(s => s.status === 'completed' || s.status === 'done').length : 0;
+                  const totalSubtasks = task.subtasks ? task.subtasks.length : 0;
+
+                  return (
+                    <div 
+                      key={task.id} 
+                      onClick={() => onSelectTask(task)}
+                      className="p-3.5 hover:bg-surface-hover/30 transition-all cursor-pointer text-left space-y-3 relative group"
+                    >
+                      {/* Main Task Metadata Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          {hasSubtasks && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="p-1 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
+                            >
+                              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                            </button>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
+                              {task.title}
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* Middle: Subtask completion and progress bar */}
+                        {totalSubtasks > 0 && (
+                          <div className="flex items-center gap-3 w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <div className="flex-1">
+                              <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
+                                <span>Subtasks</span>
+                                <span>{completedSubtasks}/{totalSubtasks}</span>
+                              </div>
+                              <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
+                                <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Right side Metadata & Quick Actions */}
+                        <div className="flex items-center gap-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {/* Priority Badge */}
+                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColorLocal(task.priority))}>
+                            {task.priority}
+                          </span>
+
+                          {/* Deadline */}
+                          {task.deadline && (
+                            <span className={cn("text-[10px] font-bold flex items-center gap-1 select-none", isOverdue ? "text-accent-red" : "text-text-muted")}>
+                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                              {isOverdue ? 'Overdue' : task.deadline}
+                            </span>
+                          )}
+
+                          {/* Assignee Avatar */}
+                          {task.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                              {task.assigned_to_avatar ? (
+                                <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
+                              )}
+                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
+                          )}
+
+                          {/* Quick Status Dropdown */}
+                          <select
+                            value={task.status === 'done' ? 'completed' : task.status}
+                            onChange={e => onStatusChange(task.id, e.target.value)}
+                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
+                          >
+                            {STATUS_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-1">
+                            {onEditTask && (
+                              <button 
+                                onClick={() => onEditTask(task)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                                title="Edit"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onTransferTask && (
+                              <button 
+                                onClick={() => onTransferTask(task)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-orange transition-colors" 
+                                title="Transfer"
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onViewHistory && (
+                              <button 
+                                onClick={() => onViewHistory(task)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                                title="History"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onAddSubtask && (
+                              <button 
+                                onClick={() => onAddSubtask(task.id)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                                title="Add Subtask"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onDeleteTask && (
+                              <button 
+                                onClick={() => onDeleteTask(task.id)} 
+                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                                title="Delete"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inline Add Subtask input */}
+                      {addSubtaskForId === task.id && setSubtaskTitle && handleAddSubtaskSubmit && (
+                        <div className="px-4 pb-3 flex items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="text" 
+                            placeholder="Subtask title..." 
+                            value={subtaskTitle || ''} 
+                            onChange={e => setSubtaskTitle(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
+                          <button 
+                            onClick={() => handleAddSubtaskSubmit(task.id)} 
+                            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Expandable subtasks list */}
+                      {hasSubtasks && isTaskExpanded && (
+                        <div className="pl-6 pt-3 border-t border-border-subtle/30 space-y-2">
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-text-muted select-none">Subtasks</div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {task.subtasks.map(st => {
+                              const isCompleted = st.status === 'completed' || st.status === 'done';
+                              return (
+                                <div 
+                                  key={st.id} 
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    onSelectTask(st);
+                                  }}
+                                  className="flex items-center justify-between gap-3 p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                    <span className={cn("text-[11px] font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                    {st.assigned_to_name && (
+                                      <span className="text-[9px] bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold">
+                                        {st.assigned_to_name}
+                                      </span>
+                                    )}
+                                    <select
+                                      value={st.status === 'done' ? 'completed' : st.status}
+                                      onChange={e => onStatusChange(st.id, e.target.value)}
+                                      className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
+                                    >
+                                      {STATUS_OPTIONS.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </select>
+                                    {onDeleteTask && (
+                                      <button 
+                                        onClick={() => onDeleteTask(st.id)} 
+                                        className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
+                                      >
+                                        <Trash className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {colTasks.length === 0 && (
+                  <div className="text-center py-8 text-[11px] text-text-muted select-none">No tasks in this group</div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

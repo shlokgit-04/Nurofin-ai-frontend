@@ -84,18 +84,12 @@ import {
 /* ─── Constants ───────────────────────────────────────────────────────────── */
 
 const STATUS_COLS = [
-  { key: 'todo', label: 'To Do', color: 'text-text-muted', bg: 'bg-slate-100 dark:bg-slate-800' },
   { key: 'in_progress', label: 'In Progress', color: 'text-accent-blue', bg: 'bg-accent-blue/10' },
-  { key: 'review', label: 'Review', color: 'text-accent-orange', bg: 'bg-accent-orange/10' },
-  { key: 'blocked', label: 'Blocked', color: 'text-accent-red', bg: 'bg-accent-red/10' },
   { key: 'completed', label: 'Done', color: 'text-accent-green', bg: 'bg-accent-green/10' },
 ] as const;
 
 const STATUS_OPTIONS = [
-  { value: 'todo', label: 'To Do' },
   { value: 'in_progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'blocked', label: 'Blocked' },
   { value: 'completed', label: 'Done' },
 ];
 
@@ -152,6 +146,10 @@ export default function TaskCenterPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'timeline' | 'calendar' | 'gantt' | 'table' | 'workload' | 'analytics'>('kanban');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'dashboard'>('workspace');
+  const [defaultNewTaskStatus, setDefaultNewTaskStatus] = useState<string>('todo');
+
+
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -236,7 +234,11 @@ export default function TaskCenterPage() {
     }
   }, [perfViewUser, selectedQuarterId]);
 
-  // ─── Handlers ───────────────────────────────────────────────────────────
+  const handleAddTaskInStatus = (status: string) => {
+    setDefaultNewTaskStatus(status);
+    setEditingTask(null);
+    setShowCreateEdit(true);
+  };
 
   const handleCreateTask = async (payload: any) => {
     const mainTaskPayload = { ...payload };
@@ -567,597 +569,538 @@ export default function TaskCenterPage() {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto font-sans text-text-primary pb-12 animate-fade-in">
       
-      {/* SECTION 1: Executive Summary */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text-secondary select-none">Executive Summary</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Active Tasks</span>
-              <Timer className="w-4 h-4 text-accent-blue" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold font-sans leading-none">{summary?.inProgress ?? 0}</div>
-              <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> In progress now
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Overdue Tasks</span>
-              <AlertTriangle className="w-4 h-4 text-accent-red" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-red">{summary?.overdue ?? 0}</div>
-              <div className="text-[9px] text-accent-red font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> Needs attention
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Completed This Week</span>
-              <CheckCircle className="w-4 h-4 text-accent-green" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.completed ?? 0}</div>
-              <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
-                <ArrowUpRight className="w-3 h-3" /> This quarter
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Blocked Tasks</span>
-              <AlertCircle className="w-4 h-4 text-accent-orange" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-orange">{summary?.blocked ?? 0}</div>
-              <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
-                No change
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Upcoming Deadlines</span>
-              <Calendar className="w-4 h-4 text-accent-blue" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none">{tasks.filter(t => t.deadline && new Date(t.deadline).getTime() > new Date().getTime()).length}</div>
-              <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
-                Next 7 days
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Employee Performance</span>
-              <TrendingUp className="w-4 h-4 text-accent-green" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.quarterProgress ? Math.round(summary.quarterProgress) : '—'}%</div>
-              <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
-                Average Score
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
-            <div className="flex items-center justify-between text-text-secondary">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Quarter Progress</span>
-              <Layers className="w-4 h-4 text-accent-blue" />
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold leading-none text-accent-blue">{summary?.quarterProgress ?? 0}%</div>
-              <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
-                {selectedQuarter?.name ?? 'FY27-Q1'}
-              </div>
-            </div>
-          </div>
-
-          {/* Large Create Task Action Panel */}
-          <div
-            onClick={() => { setEditingTask(null); setShowCreateEdit(true); }}
-            className="col-span-1 bg-gradient-to-br from-accent-blue to-accent-purple hover:from-accent-blue-hover hover:to-accent-purple border-none rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer shadow-lg hover:shadow-accent-blue/30 active:scale-[0.98] transition-all"
-          >
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-              <Plus className="w-5 h-5 text-white" />
-            </div>
-            <div className="text-white text-left">
-              <h4 className="text-[11px] font-extrabold uppercase tracking-wider">Create New Task</h4>
-              <p className="text-[9px] text-white/80 font-medium">Start from scratch</p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* SECTION 2: Quarter Management */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text-secondary select-none">Quarter Management</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {quarters.map(q => {
-            const isActive = q.id === selectedQuarterId;
-            return (
-              <div
-                key={q.id}
-                onClick={() => setSelectedQuarterId(q.id)}
-                className={cn(
-                  "bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 text-left relative group",
-                  isActive && "border-accent-blue ring-2 ring-accent-blue/20 bg-accent-blue/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
-                )}
-              >
-                <div>
-                  <h4 className="text-xs font-bold text-text-primary pr-6">{q.name}</h4>
-                  <p className="text-[9px] text-text-muted mt-1">{q.start_date ? `${q.start_date} - ${q.end_date}` : 'Jan 1 - Mar 31, 2027'}</p>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingQuarter(q);
-                    setNewQuarterForm({
-                      name: q.name,
-                      fiscal_year: q.fiscal_year,
-                      quarter_number: q.quarter_number,
-                      start_date: q.start_date || '',
-                      end_date: q.end_date || '',
-                      goals: q.goals || '',
-                      status: q.status || 'planning',
-                    });
-                    setShowQuarterModal(true);
-                  }}
-                  className="absolute top-2 right-2 p-1 text-text-muted hover:text-text-primary rounded-md opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-opacity"
-                  title="Edit Quarter"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                </button>
-                <div className="w-full">
-                  {q.status === 'active' ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[9px] font-bold text-accent-blue">
-                        <span>Active</span>
-                        <span>{summary?.quarterProgress ?? 0}% Progress</span>
-                      </div>
-                      <div className="w-full bg-border-subtle rounded-full h-1.5">
-                        <div className="bg-accent-blue h-1.5 rounded-full" style={{ width: `${summary?.quarterProgress ?? 0}%` }} />
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-[9px] bg-background-primary px-2 py-0.5 border border-border-subtle rounded text-text-secondary font-bold select-none uppercase">
-                      {q.status}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {/* Create Quarter card */}
-          <div
-            onClick={() => setShowQuarterModal(true)}
-            className="border-2 border-dashed border-border-subtle hover:border-text-muted rounded-xl p-4 flex flex-col items-center justify-center h-28 cursor-pointer text-text-muted hover:text-text-primary transition-all duration-200 group"
-          >
-            <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-extrabold uppercase mt-2 select-none">Create Quarter</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-background-secondary p-3 rounded-xl border border-border-subtle">
-        <input
-          type="text"
-          placeholder="Search tasks..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary outline-none focus:border-accent-blue transition-colors max-w-xs w-full font-medium"
-        />
-        <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="review">Review</option>
-            <option value="blocked">Blocked</option>
-            <option value="completed">Completed</option>
-          </select>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
-          >
-            <option value="">All Priorities</option>
-            <option value="low">🟢 Low</option>
-            <option value="medium">🔵 Medium</option>
-            <option value="high">🟠 High</option>
-            <option value="critical">🔴 Critical</option>
-          </select>
-          <select
-            value={''}
-            onChange={(e) => {
-              // Project filter triggers a reload with project_id
-              const pid = e.target.value;
-              if (pid) {
-                // Filter tasks locally by project
-                setTasks(prev => prev.filter(t => String(t.project_id) === pid));
-              } else {
-                loadData();
-              }
-            }}
-            className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
-          >
-            <option value="">All Projects</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Main Layout: Full Width My Tasks */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-3">
-          <h3 className="text-base font-extrabold select-none">My Tasks</h3>
-          <div className="flex flex-wrap gap-1.5 bg-background-secondary p-1 border border-border-subtle rounded-lg">
-            {([
-              { key: 'kanban' as const, label: 'Kanban' },
-              { key: 'timeline' as const, label: 'Timeline' },
-              { key: 'calendar' as const, label: 'Calendar' },
-              { key: 'gantt' as const, label: 'Gantt' },
-              { key: 'table' as const, label: 'List' },
-              { key: 'workload' as const, label: 'Workload' },
-              { key: 'analytics' as const, label: 'Analytics' },
-            ]).map(t => (
-              <button
-                key={t.key}
-                onClick={() => setViewMode(t.key)}
-                className={cn(
-                  "px-3 py-1.5 text-[11px] font-bold rounded-md transition-colors",
-                  viewMode === t.key ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-[400px]">
-          {viewMode === 'kanban' && (
-            <KanbanBoard tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} />
-          )}
-          
-          {viewMode === 'table' && (
-            <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
-          )}
-
-          {viewMode === 'timeline' && (
-            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-              <div className="flex justify-between items-center">
-                <h4 className="text-xs font-bold text-text-primary select-none">Weekly Task Schedule</h4>
-                <span className="text-[10px] text-text-muted">Active Sprints</span>
-              </div>
-              <div className="space-y-3">
-                {timelineTasks.map((task, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex justify-between text-[10px] font-semibold">
-                      <span>{task.title}</span>
-                      <span>{task.progress}%</span>
-                    </div>
-                    <div className="w-full bg-border-subtle rounded-full h-2 overflow-hidden">
-                      <div className="bg-accent-purple h-2 rounded-full" style={{ width: `${task.progress}%` }} />
-                    </div>
-                  </div>
-                ))}
-                {timelineTasks.length === 0 && (
-                  <div className="text-center py-12 text-[11px] text-text-muted">No timeline tasks found</div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'calendar' && (
-            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-center py-12">
-              <Calendar className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <h4 className="text-xs font-bold text-text-primary">Executive Task Calendar</h4>
-              <p className="text-[10px] text-text-secondary mt-1">{calendarMonthLabel}</p>
-              <div className="grid grid-cols-7 gap-1 mt-6 text-[10px] max-w-sm mx-auto border border-border-subtle p-2 rounded bg-background-primary">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} className="font-bold py-1 text-text-muted">{d}</div>)}
-                {calendarDays.map((d, i) => {
-                  const hasTasks = tasks.some(t => t.deadline === d.dateStr);
-                  return (
-                    <div key={i} className={cn(
-                      "py-2 rounded transition-colors relative cursor-pointer hover:bg-surface-hover",
-                      d.isCurrentMonth ? "text-text-primary" : "text-text-muted/40",
-                      hasTasks && "bg-accent-blue/10 text-accent-blue font-bold"
-                    )}>
-                      {d.day}
-                      {hasTasks && <div className="w-1.5 h-1.5 rounded-full bg-accent-blue absolute bottom-0.5 left-1/2 -translate-x-1/2" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'gantt' && (
-            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-              <h4 className="text-xs font-bold text-text-primary select-none">Project Deliverable Gantt Chart</h4>
-              <div className="space-y-4 pt-2">
-                {ganttTasks.map(t => (
-                  <div key={t.id} className="grid grid-cols-4 items-center gap-3">
-                    <span className="text-[10px] font-semibold text-text-primary truncate">{t.title}</span>
-                    <div className="col-span-3 h-6 bg-background-primary rounded border border-border-subtle relative overflow-hidden">
-                      <div
-                        className="h-full bg-accent-blue/20 border-r border-accent-blue flex items-center justify-end pr-2 text-[8px] font-extrabold text-accent-blue"
-                        style={{
-                          marginLeft: `${t.left}%`,
-                          width: `${t.width}%`
-                        }}
-                      >
-                        {t.deadline ? t.deadline.slice(5) : '—'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {ganttTasks.length === 0 && (
-                  <div className="text-center py-12 text-[11px] text-text-muted">No Gantt tasks mapped</div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'workload' && (
-            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-4">
-              <h4 className="text-xs font-bold text-text-primary select-none">Employee Capacity Tracker</h4>
-              <div className="space-y-3 mt-2">
-                {allUsers.map(u => {
-                  const count = tasks.filter(t => t.assigned_to_id === Number(u.id) && t.status !== 'completed').length;
-                  const pct = Math.min(100, (count / 5) * 100);
-                  return (
-                    <div key={u.id} className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-semibold">
-                        <span className="flex items-center gap-1.5">
-                          {u.avatar ? <img src={u.avatar} className="w-4 h-4 rounded-full object-cover" alt={u.name} /> : <div className="w-4 h-4 rounded-full bg-accent-blue" />}
-                          {u.name}
-                        </span>
-                        <span className={cn("font-bold", count >= 4 ? "text-accent-red" : "text-accent-green")}>
-                          {count} active tasks ({count >= 4 ? 'Overloaded' : 'Healthy'})
-                        </span>
-                      </div>
-                      <div className="w-full bg-background-primary rounded-full h-2">
-                        <div className={cn("h-2 rounded-full", count >= 4 ? "bg-accent-red" : "bg-accent-green")} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {viewMode === 'analytics' && (
-            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-6">
-              <h4 className="text-xs font-bold text-text-primary select-none">Quarter Analytics</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
-                  <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">BURNDOWN DATA</span>
-                  <ResponsiveContainer width="100%" height="90%">
-                    <AreaChart data={burndownData}>
-                      <XAxis dataKey="name" fontSize={8} />
-                      <YAxis fontSize={8} />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="ideal" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.05} />
-                      <Area type="monotone" dataKey="actual" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.05} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
-                  <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">COMPLETED BY QUARTER</span>
-                  <ResponsiveContainer width="100%" height="90%">
-                    <BarChart data={velocityData}>
-                      <XAxis dataKey="name" fontSize={8} />
-                      <YAxis fontSize={8} />
-                      <Tooltip />
-                      <Bar dataKey="completed" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Supporting Widgets Row (3 columns, equal heights) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Overdue Tasks widget */}
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
-          <div className="flex justify-between items-center mb-3 flex-shrink-0">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Overdue Tasks</h3>
-            <span onClick={() => setViewMode('table')} className="text-[10px] text-accent-blue font-bold hover:underline cursor-pointer">View All</span>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
-            {overdueTasksList.slice(0, 10).map(t => (
-              <div key={t.id} onClick={() => handleSelectTask(t)} className="bg-background-primary border border-border-subtle p-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer hover:border-text-muted transition-colors">
-                <div className="min-w-0">
-                  <h4 className="text-[11px] font-bold text-text-primary truncate">{t.title}</h4>
-                  <p className="text-[9px] text-accent-red font-bold flex items-center gap-0.5 mt-0.5">
-                    {t.daysOverdue} days overdue
-                  </p>
-                </div>
-                <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase flex-shrink-0", getPriorityColor(t.priority))}>
-                  {t.priority}
-                </span>
-              </div>
-            ))}
-            {overdueTasksList.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
-                No overdue tasks!
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Performance Leaderboard widget */}
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
-          <div className="flex justify-between items-center mb-3 flex-shrink-0">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Performance Leaderboard</h3>
-            <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-            {performersList.slice(0, 10).map((p, idx) => (
-              <div key={p.user_id} className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-text-muted w-4 text-center">{idx + 1}</span>
-                {p.avatar ? (
-                  <img src={p.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={p.name} />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{p.name.charAt(0)}</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-[11px] font-bold text-text-primary truncate">{p.name}</h4>
-                </div>
-                <span className={cn(
-                  "text-xs font-bold",
-                  p.performance_pct >= 90 ? "text-accent-green" : p.performance_pct >= 80 ? "text-accent-purple" : "text-accent-orange"
-                )}>
-                  {p.performance_pct}%
-                </span>
-              </div>
-            ))}
-            {performersList.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
-                No scoreboard data
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Activity widget */}
-        <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
-          <div className="flex justify-between items-center mb-3 flex-shrink-0">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Recent Activity</h3>
-            <span className="text-[10px] text-text-muted font-bold">View All</span>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-            {recentActivities.map(act => (
-              <div key={act.id} className="flex gap-2">
-                {act.user_avatar ? (
-                  <img src={act.user_avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={act.user_name || ''} />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{act.user_name?.charAt(0) || '?'}</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] text-text-primary leading-tight font-medium">
-                    <span className="font-bold">{act.user_name}</span> {act.description || act.action}
-                  </p>
-                  <span className="text-[9px] text-text-muted mt-0.5 block">{timeAgo(act.created_at)}</span>
-                </div>
-              </div>
-            ))}
-            {recentActivities.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
-                No recent activities
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Employee Performance Table (Full Width) */}
-      <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Employee Performance</h3>
-          <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
+      {/* Top Header Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle/55">
+        <div>
+          <h1 className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-text-primary via-accent-purple to-accent-blue bg-clip-text text-transparent flex items-center gap-2 select-none">
+            <Layers className="w-5 h-5 text-accent-purple" />
+            Execution Hub
+          </h1>
+          <p className="text-[11px] text-text-secondary font-semibold mt-0.5">Manage tasks, trace milestones, and monitor team performance metrics.</p>
         </div>
         
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted">Employee</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Tasks Assigned</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Completed</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Overdue</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">In Progress</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Performance</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Trend</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allUsers.filter(u => u.username !== 'vincent_ceo').map(u => {
-                const uTasks = tasks.filter(t => t.assigned_to_id === Number(u.id));
-                const total = uTasks.length;
-                const completed = uTasks.filter(t => t.status === 'completed').length;
-                const progress = uTasks.filter(t => t.status === 'in_progress').length;
-                
-                const today = new Date().toISOString().split('T')[0];
-                const overdue = uTasks.filter(t => t.deadline && t.deadline < today && t.status !== 'completed').length;
-                const score = total > 0 ? Math.round((completed / total) * 100) : 0;
-                
+        <div className="flex bg-background-secondary p-1 border border-border-subtle rounded-xl max-w-fit shadow-sm">
+          <button
+            onClick={() => setActiveTab('workspace')}
+            className={cn(
+              "px-4 py-2 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5",
+              activeTab === 'workspace' ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> Task Board
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={cn(
+              "px-4 py-2 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5",
+              activeTab === 'dashboard' ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+            )}
+          >
+            <BarChart3 className="w-3.5 h-3.5" /> Performance Dashboard
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'workspace' ? (
+        <div className="space-y-6">
+          {/* SECTION 2: Quarter Management */}
+          <div className="flex flex-col gap-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-text-secondary select-none">Quarter Management</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {quarters.map(q => {
+                const isActive = q.id === selectedQuarterId;
                 return (
-                  <TableRow key={u.id} className="cursor-pointer hover:bg-surface-hover/30 transition-colors" onClick={() => setPerfViewUser(u)}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {u.avatar ? (
-                          <img src={u.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={u.name} />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold">{u.name.charAt(0)}</div>
-                        )}
-                        <span className="text-xs font-bold text-text-primary">{u.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center font-bold text-xs">{total}</TableCell>
-                    <TableCell className="text-center font-bold text-xs text-accent-green">{completed}</TableCell>
-                    <TableCell className="text-center font-bold text-xs text-accent-red">{overdue}</TableCell>
-                    <TableCell className="text-center font-bold text-xs text-accent-blue">{progress}</TableCell>
-                    <TableCell className="text-center">
-                      <span className={cn(
-                        "text-xs font-extrabold",
-                        score >= 90 ? "text-accent-green" : score >= 80 ? "text-accent-purple" : "text-accent-orange"
-                      )}>
-                        {score}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <svg className="w-12 h-5 mx-auto" viewBox="0 0 50 20">
-                        <path
-                          d={getSparklinePath(score)}
-                          fill="none"
-                          stroke={score >= 90 ? "#10B981" : score >= 80 ? "#8B5CF6" : "#F59E0B"}
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <button
-                        onClick={() => setPerfViewUser(u)}
-                        className="px-2.5 py-1 bg-background-primary hover:bg-surface-hover border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-colors"
-                      >
-                        View
-                      </button>
-                    </TableCell>
-                  </TableRow>
+                  <div
+                    key={q.id}
+                    onClick={() => setSelectedQuarterId(q.id)}
+                    className={cn(
+                      "bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer transition-all duration-200 text-left relative group",
+                      isActive && "border-accent-blue ring-2 ring-accent-blue/20 bg-accent-blue/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                    )}
+                  >
+                    <div>
+                      <h4 className="text-xs font-bold text-text-primary pr-6">{q.name}</h4>
+                      <p className="text-[9px] text-text-muted mt-1">{q.start_date ? `${q.start_date} - ${q.end_date}` : 'Jan 1 - Mar 31, 2027'}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingQuarter(q);
+                        setNewQuarterForm({
+                          name: q.name,
+                          fiscal_year: q.fiscal_year,
+                          quarter_number: q.quarter_number,
+                          start_date: q.start_date || '',
+                          end_date: q.end_date || '',
+                          goals: q.goals || '',
+                          status: q.status || 'planning',
+                        });
+                        setShowQuarterModal(true);
+                      }}
+                      className="absolute top-2 right-2 p-1 text-text-muted hover:text-text-primary rounded-md opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-opacity"
+                      title="Edit Quarter"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="w-full">
+                      {q.status === 'active' ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[9px] font-bold text-accent-blue">
+                            <span>Active</span>
+                            <span>{summary?.quarterProgress ?? 0}% Progress</span>
+                          </div>
+                          <div className="w-full bg-border-subtle rounded-full h-1.5">
+                            <div className="bg-accent-blue h-1.5 rounded-full" style={{ width: `${summary?.quarterProgress ?? 0}%` }} />
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] bg-background-primary px-2 py-0.5 border border-border-subtle rounded text-text-secondary font-bold select-none uppercase">
+                          {q.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
-            </TableBody>
-          </Table>
+              {/* Create Quarter card */}
+              <div
+                onClick={() => setShowQuarterModal(true)}
+                className="border-2 border-dashed border-border-subtle hover:border-text-muted rounded-xl p-4 flex flex-col items-center justify-center h-28 cursor-pointer text-text-muted hover:text-text-primary transition-all duration-200 group"
+              >
+                <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-extrabold uppercase mt-2 select-none">Create Quarter</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-background-secondary p-3 rounded-xl border border-border-subtle">
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary outline-none focus:border-accent-blue transition-colors max-w-xs w-full font-medium"
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+              >
+                <option value="">All Statuses</option>
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="review">Review</option>
+                <option value="blocked">Blocked</option>
+                <option value="completed">Completed</option>
+              </select>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+              >
+                <option value="">All Priorities</option>
+                <option value="low">🟢 Low</option>
+                <option value="medium">🔵 Medium</option>
+                <option value="high">🟠 High</option>
+                <option value="critical">🔴 Critical</option>
+              </select>
+              <select
+                value={''}
+                onChange={(e) => {
+                  const pid = e.target.value;
+                  if (pid) {
+                    setTasks(prev => prev.filter(t => String(t.project_id) === pid));
+                  } else {
+                    loadData();
+                  }
+                }}
+                className="bg-background-primary border border-border-subtle text-xs rounded-lg px-3 py-2 text-text-primary font-bold outline-none cursor-pointer"
+              >
+                <option value="">All Projects</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              {/* Task View Toggle Switcher between Grouped Feed and List */}
+              <div className="flex bg-background-primary p-0.5 border border-border-subtle rounded-lg ml-2">
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={cn(
+                    "px-3 py-1.5 text-[10px] font-bold rounded-md transition-colors",
+                    viewMode === 'kanban' ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                  )}
+                >
+                  Grouped
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={cn(
+                    "px-3 py-1.5 text-[10px] font-bold rounded-md transition-colors",
+                    viewMode === 'table' ? "bg-accent-blue text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                  )}
+                >
+                  List
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Layout: Full Width My Tasks */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-3">
+              <h3 className="text-base font-extrabold select-none">My Tasks</h3>
+              <button
+                onClick={() => {
+                  setDefaultNewTaskStatus('todo');
+                  setEditingTask(null);
+                  setShowCreateEdit(true);
+                }}
+                className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-[10px] font-bold rounded flex items-center gap-1 shadow transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" /> Create Task
+              </button>
+            </div>
+
+            <div className="min-h-[400px]">
+              {viewMode === 'kanban' ? (
+                <GroupedTaskFeed tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} onAddTaskInStatus={handleAddTaskInStatus} />
+              ) : (
+                <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-6">
+          
+          {/* SECTION 1: Executive Summary */}
+          <div className="flex flex-col gap-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-text-secondary select-none">Executive Summary</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+              
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Active Tasks</span>
+                  <Timer className="w-4 h-4 text-accent-blue" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold font-sans leading-none">{summary?.inProgress ?? 0}</div>
+                  <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
+                    <ArrowUpRight className="w-3 h-3" /> In progress now
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Overdue Tasks</span>
+                  <AlertTriangle className="w-4 h-4 text-accent-red" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none text-accent-red">{summary?.overdue ?? 0}</div>
+                  <div className="text-[9px] text-accent-red font-bold mt-1.5 flex items-center gap-0.5">
+                    <ArrowUpRight className="w-3 h-3" /> Needs attention
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Completed This Week</span>
+                  <CheckCircle className="w-4 h-4 text-accent-green" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.completed ?? 0}</div>
+                  <div className="text-[9px] text-accent-green font-bold mt-1.5 flex items-center gap-0.5">
+                    <ArrowUpRight className="w-3 h-3" /> This quarter
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Blocked Tasks</span>
+                  <AlertCircle className="w-4 h-4 text-accent-orange" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none text-accent-orange">{summary?.blocked ?? 0}</div>
+                  <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
+                    No change
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Upcoming Deadlines</span>
+                  <Calendar className="w-4 h-4 text-accent-blue" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none">{tasks.filter(t => t.deadline && new Date(t.deadline).getTime() > new Date().getTime()).length}</div>
+                  <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
+                    Next 7 days
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Employee Performance</span>
+                  <TrendingUp className="w-4 h-4 text-accent-green" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none text-accent-green">{summary?.quarterProgress ? Math.round(summary.quarterProgress) : '—'}%</div>
+                  <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
+                    Average Score
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 flex flex-col justify-between h-28 hover:-translate-y-0.5 transition-transform duration-200">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Quarter Progress</span>
+                  <Layers className="w-4 h-4 text-accent-blue" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none text-accent-blue">{summary?.quarterProgress ?? 0}%</div>
+                  <div className="text-[9px] text-text-muted font-bold mt-1.5 flex items-center gap-0.5">
+                    {selectedQuarter?.name ?? 'FY27-Q1'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Large Create Task Action Panel */}
+              <div
+                onClick={() => { setEditingTask(null); setShowCreateEdit(true); }}
+                className="col-span-1 bg-gradient-to-br from-accent-blue to-accent-purple hover:from-accent-blue-hover hover:to-accent-purple border-none rounded-xl p-4 flex flex-col justify-between h-28 cursor-pointer shadow-lg hover:shadow-accent-blue/30 active:scale-[0.98] transition-all"
+              >
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-white" />
+                </div>
+                <div className="text-white text-left">
+                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider">Create New Task</h4>
+                  <p className="text-[9px] text-white/80 font-medium">Start from scratch</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Quarter Analytics */}
+          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left space-y-6">
+            <h4 className="text-xs font-bold text-text-primary select-none font-sans">Quarter Analytics</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
+                <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">BURNDOWN DATA</span>
+                <ResponsiveContainer width="100%" height="90%">
+                  <AreaChart data={burndownData}>
+                    <XAxis dataKey="name" fontSize={8} />
+                    <YAxis fontSize={8} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="ideal" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.05} />
+                    <Area type="monotone" dataKey="actual" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.05} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="h-44 border border-border-subtle rounded p-2 bg-background-primary">
+                <span className="text-[10px] text-text-muted font-bold block mb-2 select-none">COMPLETED BY QUARTER</span>
+                <ResponsiveContainer width="100%" height="90%">
+                  <BarChart data={velocityData}>
+                    <XAxis dataKey="name" fontSize={8} />
+                    <YAxis fontSize={8} />
+                    <Tooltip />
+                    <Bar dataKey="completed" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Supporting Widgets Row (3 columns, equal heights) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Overdue Tasks widget */}
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+              <div className="flex justify-between items-center mb-3 flex-shrink-0">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Overdue Tasks</h3>
+                <span onClick={() => { setActiveTab('workspace'); setViewMode('table'); }} className="text-[10px] text-accent-blue font-bold hover:underline cursor-pointer">View All</span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                {overdueTasksList.slice(0, 10).map(t => (
+                  <div key={t.id} onClick={() => handleSelectTask(t)} className="bg-background-primary border border-border-subtle p-2.5 rounded-lg flex items-center justify-between gap-2 cursor-pointer hover:border-text-muted transition-colors">
+                    <div className="min-w-0">
+                      <h4 className="text-[11px] font-bold text-text-primary truncate">{t.title}</h4>
+                      <p className="text-[9px] text-accent-red font-bold flex items-center gap-0.5 mt-0.5">
+                        {t.daysOverdue} days overdue
+                      </p>
+                    </div>
+                    <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase flex-shrink-0", getPriorityColor(t.priority))}>
+                      {t.priority}
+                    </span>
+                  </div>
+                ))}
+                {overdueTasksList.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                    No overdue tasks!
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Performance Leaderboard widget */}
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+              <div className="flex justify-between items-center mb-3 flex-shrink-0">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Performance Leaderboard</h3>
+                <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+                {performersList.slice(0, 10).map((p, idx) => (
+                  <div key={p.user_id} className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-text-muted w-4 text-center">{idx + 1}</span>
+                    {p.avatar ? (
+                      <img src={p.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={p.name} />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{p.name.charAt(0)}</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[11px] font-bold text-text-primary truncate">{p.name}</h4>
+                    </div>
+                    <span className={cn(
+                      "text-xs font-bold",
+                      p.performance_pct >= 90 ? "text-accent-green" : p.performance_pct >= 80 ? "text-accent-purple" : "text-accent-orange"
+                    )}>
+                      {p.performance_pct}%
+                    </span>
+                  </div>
+                ))}
+                {performersList.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                    No scoreboard data
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Activity widget */}
+            <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left flex flex-col h-80">
+              <div className="flex justify-between items-center mb-3 flex-shrink-0">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Recent Activity</h3>
+                <span className="text-[10px] text-text-muted font-bold">View All</span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+                {recentActivities.map(act => (
+                  <div key={act.id} className="flex gap-2">
+                    {act.user_avatar ? (
+                      <img src={act.user_avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={act.user_name || ''} />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{act.user_name?.charAt(0) || '?'}</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-text-primary leading-tight font-medium">
+                        <span className="font-bold">{act.user_name}</span> {act.description || act.action}
+                      </p>
+                      <span className="text-[9px] text-text-muted mt-0.5 block">{timeAgo(act.created_at)}</span>
+                    </div>
+                  </div>
+                ))}
+                {recentActivities.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-[11px] text-text-muted select-none">
+                    No recent activities
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Employee Performance Table (Full Width) */}
+          <div className="bg-background-secondary border border-border-subtle rounded-xl p-4 text-left">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-text-secondary select-none">Employee Performance</h3>
+              <span className="text-[10px] text-text-muted font-bold">This Quarter</span>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted">Employee</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Tasks Assigned</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Completed</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Overdue</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">In Progress</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Performance</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Trend</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-text-muted text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allUsers.filter(u => u.username !== 'vincent_ceo').map(u => {
+                    const uTasks = tasks.filter(t => t.assigned_to_id === Number(u.id));
+                    const total = uTasks.length;
+                    const completed = uTasks.filter(t => t.status === 'completed').length;
+                    const progress = uTasks.filter(t => t.status === 'in_progress').length;
+                    
+                    const today = new Date().toISOString().split('T')[0];
+                    const overdue = uTasks.filter(t => t.deadline && t.deadline < today && t.status !== 'completed').length;
+                    const score = total > 0 ? Math.round((completed / total) * 100) : 0;
+                    
+                    return (
+                      <TableRow key={u.id} className="cursor-pointer hover:bg-surface-hover/30 transition-colors" onClick={() => setPerfViewUser(u)}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {u.avatar ? (
+                              <img src={u.avatar} className="w-7 h-7 rounded-full object-cover border border-border-subtle" alt={u.name} />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-accent-blue text-white flex items-center justify-center text-xs font-bold">{u.name.charAt(0)}</div>
+                            )}
+                            <span className="text-xs font-bold text-text-primary">{u.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-xs">{total}</TableCell>
+                        <TableCell className="text-center font-bold text-xs text-accent-green">{completed}</TableCell>
+                        <TableCell className="text-center font-bold text-xs text-accent-red">{overdue}</TableCell>
+                        <TableCell className="text-center font-bold text-xs text-accent-blue">{progress}</TableCell>
+                        <TableCell className="text-center">
+                          <span className={cn(
+                            "text-xs font-extrabold",
+                            score >= 90 ? "text-accent-green" : score >= 80 ? "text-accent-purple" : "text-accent-orange"
+                          )}>
+                            {score}%
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <svg className="w-12 h-5 mx-auto" viewBox="0 0 50 20">
+                            <path
+                              d={getSparklinePath(score)}
+                              fill="none"
+                              stroke={score >= 90 ? "#10B981" : score >= 80 ? "#8B5CF6" : "#F59E0B"}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <button
+                            onClick={() => setPerfViewUser(u)}
+                            className="px-2.5 py-1 bg-background-primary hover:bg-surface-hover border border-border-subtle text-text-secondary hover:text-text-primary text-[10px] font-bold rounded transition-colors"
+                          >
+                            View
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+        </div>
+      )}
 
 
 
@@ -1185,7 +1128,9 @@ export default function TaskCenterPage() {
         allUsers={allUsers}
         quarters={quarters}
         selectedQuarterId={selectedQuarterId}
+        defaultStatus={defaultNewTaskStatus}
       />
+
 
       {/* Task Detail Dialog */}
       <TaskDetailDialog
@@ -1326,149 +1271,207 @@ export default function TaskCenterPage() {
 
 /* ─── Kanban Board ────────────────────────────────────────────────────────── */
 
-function KanbanBoard({
+function GroupedTaskFeed({
   tasks,
   onSelectTask,
   onStatusChange,
+  onAddTaskInStatus,
 }: {
   tasks: WCTask[];
   onSelectTask: (t: any) => void;
   onStatusChange: (id: number, status: string) => void;
+  onAddTaskInStatus?: (status: string) => void;
 }) {
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    in_progress: true,
+    completed: true,
+  });
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
 
-  const toggleExpand = (taskId: number, e: React.MouseEvent) => {
+  const toggleExpandTask = (taskId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div className="space-y-4">
       {STATUS_COLS.map(col => {
-        const colTasks = tasks.filter(t => t.status === col.key);
+        const colTasks = col.key === 'in_progress'
+          ? tasks.filter(t => t.status !== 'completed')
+          : tasks.filter(t => t.status === 'completed');
+        const isGroupExpanded = expandedGroups[col.key];
+
         return (
-          <div key={col.key} className="bg-background-secondary rounded-xl border border-border-subtle flex flex-col min-h-[500px] h-[650px]">
-            <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface-card/10 select-none">
-              <div className="flex items-center gap-2">
+          <div key={col.key} className="bg-background-secondary border border-border-subtle rounded-xl overflow-hidden transition-all shadow-sm">
+            {/* Status Header Bar */}
+            <div 
+              onClick={() => toggleGroup(col.key)}
+              className="p-3 bg-surface-card/10 flex items-center justify-between cursor-pointer select-none hover:bg-surface-card/20 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <ChevronDown className={cn("w-4 h-4 text-text-muted transition-transform duration-200", isGroupExpanded ? "rotate-0" : "-rotate-90")} />
                 <div className={cn("w-2.5 h-2.5 rounded-full", col.color, col.bg)} />
-                <span className="text-xs font-bold text-text-primary">{col.label}</span>
+                <span className="text-xs font-bold text-text-primary uppercase tracking-wider">{col.label}</span>
+                <span className="text-[10px] bg-background-primary border border-border-subtle px-2.5 py-0.5 rounded-full text-text-secondary font-bold">
+                  {colTasks.length} {colTasks.length === 1 ? 'task' : 'tasks'}
+                </span>
               </div>
-              <span className="text-[10px] bg-background-primary border border-border-subtle px-2 py-0.5 rounded text-text-secondary font-bold">
-                {colTasks.length}
-              </span>
+
             </div>
-            <div className="p-3 flex-1 overflow-y-auto space-y-3">
-              {colTasks.map(task => {
-                const today = new Date().toISOString().split('T')[0];
-                const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed';
-                const hasSubtasks = task.subtasks && task.subtasks.length > 0;
-                const isExpanded = !!expandedTasks[task.id];
-                
-                return (
-                  <div
-                    key={task.id}
-                    onClick={() => onSelectTask(task)}
-                    className="bg-background-primary p-3 rounded-lg border border-border-subtle hover:border-text-muted transition-colors cursor-pointer text-left space-y-3 relative group shadow-sm"
-                  >
-                    <h4 className="text-xs font-bold text-text-primary line-clamp-2 leading-relaxed flex items-start gap-1">
-                      {hasSubtasks && (
-                        <button
-                          onClick={e => toggleExpand(task.id, e)}
-                          className="p-0.5 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
-                        >
-                          <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", isExpanded ? "rotate-0" : "-rotate-90")} />
-                        </button>
-                      )}
-                      <span className="flex-1">{task.title}</span>
-                    </h4>
-                    
-                    {task.project_name && (
-                      <div className="flex items-center gap-1 text-[9px] font-bold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded-full w-fit">
-                        <span className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
-                        {task.project_name}
-                      </div>
-                    )}
-                    
-                    {/* Render progress bar for in progress/review tasks */}
-                    {(task.status === 'in_progress' || task.status === 'review') && (
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[8px] font-bold text-text-secondary">
-                          <span>Progress</span>
-                          <span>{task.progress ?? 0}%</span>
-                        </div>
-                        <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
-                          <div className="bg-accent-blue h-1 rounded-full" style={{ width: `${task.progress ?? 0}%` }} />
-                        </div>
-                      </div>
-                    )}
 
-                    <div className="flex items-center justify-between pt-2 border-t border-border-subtle/50 text-[10px]">
-                      <span className={cn("px-1.5 py-0.5 rounded border text-[8px] font-extrabold uppercase", getPriorityColor(task.priority))}>
-                        {task.priority}
-                      </span>
-                      {task.deadline && (
-                        <span className={cn("text-[9px] font-bold flex items-center gap-1", isOverdue ? "text-accent-red" : "text-text-muted")}>
-                          <Calendar className="w-3 h-3" /> 
-                          {isOverdue ? 'Overdue' : task.deadline.slice(5)}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {task.assigned_to_name && (
-                      <div className="flex items-center gap-1.5">
-                        {task.assigned_to_avatar ? (
-                          <img src={task.assigned_to_avatar} className="w-4.5 h-4.5 rounded-full object-cover border border-border-subtle" alt={task.assigned_to_name} />
-                        ) : (
-                          <div className="w-4.5 h-4.5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[8px] font-bold">{task.assigned_to_name.charAt(0)}</div>
-                        )}
-                        <span className="text-[10px] text-text-secondary truncate">{task.assigned_to_name}</span>
-                      </div>
-                    )}
+            {/* Tasks List */}
+            {isGroupExpanded && (
+              <div className="divide-y divide-border-subtle/50 bg-background-primary">
+                {colTasks.map(task => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed';
+                  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+                  const isTaskExpanded = !!expandedTasks[task.id];
+                  const completedSubtasks = task.subtasks ? task.subtasks.filter(s => s.status === 'completed').length : 0;
+                  const totalSubtasks = task.subtasks ? task.subtasks.length : 0;
 
-                    {hasSubtasks && isExpanded && (
-                      <div className="mt-3 pt-2 border-t border-border-subtle/30 space-y-1.5 text-[10px]">
-                        {task.subtasks.map(st => {
-                          const statusIcon = st.status === 'completed' ? '✓' : (st.status === 'in_progress' || st.status === 'review' || st.status === 'blocked') ? '●' : '○';
-                          const statusColor = st.status === 'completed' ? 'text-accent-green' : st.status === 'blocked' ? 'text-accent-red' : st.status === 'review' ? 'text-accent-orange' : st.status === 'in_progress' ? 'text-accent-blue' : 'text-text-muted';
-                          return (
-                            <div key={st.id} className="flex items-center gap-1.5 pl-1 py-0.5 hover:bg-surface-hover rounded transition-colors" onClick={e => {
-                              e.stopPropagation();
-                              onSelectTask(st);
-                            }}>
-                              <span className={cn("font-bold text-[11px]", statusColor)}>{statusIcon}</span>
-                              <span className="text-text-primary flex-1 truncate">{st.title}</span>
-                              {st.assigned_to_name && (
-                                <span className="text-[8px] bg-background-secondary border px-1.5 rounded text-text-secondary flex-shrink-0 font-bold">
-                                  {st.assigned_to_name.split(' ')[0]}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={e => e.stopPropagation()}
+                  return (
+                    <div 
+                      key={task.id} 
+                      onClick={() => onSelectTask(task)}
+                      className="p-3.5 hover:bg-surface-hover/30 transition-all cursor-pointer text-left space-y-3 relative group"
                     >
-                      <select
-                        value={task.status}
-                        onChange={e => onStatusChange(task.id, e.target.value)}
-                        className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer"
-                      >
-                        {STATUS_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                      {/* Main Task Metadata Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          {hasSubtasks && (
+                            <button
+                              onClick={e => toggleExpandTask(task.id, e)}
+                              className="p-1 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
+                            >
+                              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                            </button>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
+                              {task.title}
+                            </h4>
+                            {task.project_name && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded-full mt-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
+                                {task.project_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Middle: Subtask completion and progress bar */}
+                        {totalSubtasks > 0 && (
+                          <div className="flex items-center gap-3 w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                            <div className="flex-1">
+                              <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
+                                <span>Subtasks</span>
+                                <span>{completedSubtasks}/{totalSubtasks}</span>
+                              </div>
+                              <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
+                                <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Right side Metadata & Quick Actions */}
+                        <div className="flex items-center gap-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {/* Priority Badge */}
+                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColor(task.priority))}>
+                            {task.priority}
+                          </span>
+
+                          {/* Deadline */}
+                          {task.deadline && (
+                            <span className={cn("text-[10px] font-bold flex items-center gap-1 select-none", isOverdue ? "text-accent-red" : "text-text-muted")}>
+                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                              {isOverdue ? 'Overdue' : task.deadline}
+                            </span>
+                          )}
+
+                          {/* Assignee Avatar */}
+                          {task.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                              {task.assigned_to_avatar ? (
+                                <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
+                              )}
+                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
+                          )}
+
+                          {/* Quick Status Dropdown */}
+                          <select
+                            value={task.status}
+                            onChange={e => onStatusChange(task.id, e.target.value)}
+                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
+                          >
+                            {STATUS_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Expandable subtasks list */}
+                      {hasSubtasks && isTaskExpanded && (
+                        <div className="pl-6 pt-3 border-t border-border-subtle/30 space-y-2">
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-text-muted select-none">Subtasks</div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {task.subtasks.map(st => {
+                              const isCompleted = st.status === 'completed';
+                              return (
+                                <div 
+                                  key={st.id} 
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    onSelectTask(st);
+                                  }}
+                                  className="flex items-center justify-between gap-3 p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                    <span className={cn("text-[11px] font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                    {st.assigned_to_name && (
+                                      <span className="text-[9px] bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold">
+                                        {st.assigned_to_name}
+                                      </span>
+                                    )}
+                                    <select
+                                      value={st.status}
+                                      onChange={e => onStatusChange(st.id, e.target.value)}
+                                      className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
+                                    >
+                                      {STATUS_OPTIONS.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
-              {colTasks.length === 0 && (
-                <div className="text-center py-12 text-[10px] text-text-muted border border-dashed border-border-subtle rounded-lg">No tasks</div>
-              )}
-            </div>
+                  );
+                })}
+                {colTasks.length === 0 && (
+                  <div className="text-center py-8 text-[11px] text-text-muted select-none">No tasks in this group</div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1894,6 +1897,7 @@ function CreateEditTaskDialog({
   allUsers,
   quarters,
   selectedQuarterId,
+  defaultStatus,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1903,6 +1907,7 @@ function CreateEditTaskDialog({
   allUsers: UserType[];
   quarters: WCQuarter[];
   selectedQuarterId: number | null;
+  defaultStatus?: string;
 }) {
   const isEdit = !!task;
   interface FormSubtask {
@@ -1955,7 +1960,7 @@ function CreateEditTaskDialog({
           title: '',
           description: '',
           priority: 'medium',
-          status: 'todo',
+          status: defaultStatus || 'todo',
           assigned_to_id: '',
           reviewer_id: '',
           project_id: '',
@@ -1966,7 +1971,7 @@ function CreateEditTaskDialog({
         });
       }
     }
-  }, [open, task, selectedQuarterId]);
+  }, [open, task, selectedQuarterId, defaultStatus]);
 
   const addSubtask = () => {
     setSubtasks(prev => [
