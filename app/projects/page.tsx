@@ -1696,13 +1696,12 @@ function GroupedTaskFeed({
                   {colTasks.length} {colTasks.length === 1 ? 'task' : 'tasks'}
                 </span>
               </div>
-
             </div>
 
             {/* Tasks List */}
             {isGroupExpanded && (
               <div className="divide-y divide-border-subtle/50 bg-background-primary">
-                {colTasks.map(task => {
+                {colTasks.map((task, idx) => {
                   const today = new Date().toISOString().split('T')[0];
                   const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed' && task.status !== 'done';
                   const hasSubtasks = task.subtasks && task.subtasks.length > 0;
@@ -1719,20 +1718,9 @@ function GroupedTaskFeed({
                       {/* Main Task Metadata Row */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          {hasSubtasks && (
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                toggleExpandTask(task.id, e);
-                              }}
-                              className="p-1 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
-                            >
-                              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
-                            </button>
-                          )}
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
-                              {task.title}
+                              {idx + 1}. {task.title}
                             </h4>
                           </div>
                         </div>
@@ -1781,6 +1769,30 @@ function GroupedTaskFeed({
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
                           )}
 
+                          {/* View Subtask button */}
+                          {hasSubtasks && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                            >
+                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                              {isTaskExpanded ? 'Hide subtask' : 'View sub task'}
+                            </button>
+                          )}
+
+                          {/* Add sub task button */}
+                          {onAddSubtask && (
+                            <button
+                              onClick={() => onAddSubtask(task.id)}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
+                            </button>
+                          )}
+
                           {/* Quick Status Dropdown */}
                           <select
                             value={task.status === 'done' ? 'completed' : task.status}
@@ -1819,15 +1831,6 @@ function GroupedTaskFeed({
                                 title="History"
                               >
                                 <History className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {onAddSubtask && (
-                              <button 
-                                onClick={() => onAddSubtask(task.id)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
-                                title="Add Subtask"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
                               </button>
                             )}
                             {onDeleteTask && (
@@ -1902,7 +1905,7 @@ function GroupedTaskFeed({
                                         onClick={() => onDeleteTask(st.id)} 
                                         className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
                                       >
-                                        <Trash className="w-3 h-3" />
+                                        <Trash className="w-3.5 h-3.5" />
                                       </button>
                                     )}
                                   </div>

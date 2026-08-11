@@ -766,7 +766,7 @@ export default function TaskCenterPage() {
 
             <div className="min-h-[400px]">
               {viewMode === 'kanban' ? (
-                <GroupedTaskFeed tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} onAddTaskInStatus={handleAddTaskInStatus} />
+                <GroupedTaskFeed tasks={tasks} onSelectTask={handleSelectTask} onStatusChange={handleStatusChange} onAddTaskInStatus={handleAddTaskInStatus} onRefresh={loadData} />
               ) : (
                 <TaskTableView tasks={tasks} onSelectTask={handleSelectTask} />
               )}
@@ -1276,11 +1276,13 @@ function GroupedTaskFeed({
   onSelectTask,
   onStatusChange,
   onAddTaskInStatus,
+  onRefresh,
 }: {
   tasks: WCTask[];
   onSelectTask: (t: any) => void;
   onStatusChange: (id: number, status: string) => void;
   onAddTaskInStatus?: (status: string) => void;
+  onRefresh?: () => void;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     in_progress: true,
@@ -1297,6 +1299,9 @@ function GroupedTaskFeed({
     e.stopPropagation();
     setExpandedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
   };
+
+  const [inlineAddSubtaskForId, setInlineAddSubtaskForId] = useState<number | null>(null);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   return (
     <div className="space-y-4">
@@ -1327,7 +1332,7 @@ function GroupedTaskFeed({
             {/* Tasks List */}
             {isGroupExpanded && (
               <div className="divide-y divide-border-subtle/50 bg-background-primary">
-                {colTasks.map(task => {
+                {colTasks.map((task, idx) => {
                   const today = new Date().toISOString().split('T')[0];
                   const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed';
                   const hasSubtasks = task.subtasks && task.subtasks.length > 0;
@@ -1344,17 +1349,9 @@ function GroupedTaskFeed({
                       {/* Main Task Metadata Row */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          {hasSubtasks && (
-                            <button
-                              onClick={e => toggleExpandTask(task.id, e)}
-                              className="p-1 hover:bg-surface-hover rounded flex-shrink-0 text-text-secondary mt-0.5"
-                            >
-                              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
-                            </button>
-                          )}
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
-                              {task.title}
+                              {idx + 1}. {task.title}
                             </h4>
                             {task.project_name && (
                               <span className="inline-flex items-center gap-1 text-[9px] font-bold text-accent-blue bg-accent-blue/5 border border-accent-blue/10 px-2 py-0.5 rounded-full mt-1.5">
@@ -1409,6 +1406,32 @@ function GroupedTaskFeed({
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
                           )}
 
+                          {/* View Subtask button */}
+                          {hasSubtasks && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                            >
+                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                              {isTaskExpanded ? 'Hide subtask' : 'View sub task'}
+                            </button>
+                          )}
+
+                          {/* Add sub task button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInlineAddSubtaskForId(inlineAddSubtaskForId === task.id ? null : task.id);
+                              setNewSubtaskTitle('');
+                            }}
+                            className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
+                          </button>
+
                           {/* Quick Status Dropdown */}
                           <select
                             value={task.status}
@@ -1421,6 +1444,41 @@ function GroupedTaskFeed({
                           </select>
                         </div>
                       </div>
+
+                      {/* Inline Add Subtask input */}
+                      {inlineAddSubtaskForId === task.id && (
+                        <div className="px-4 pb-3 flex items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="text" 
+                            placeholder="Subtask title..." 
+                            value={newSubtaskTitle} 
+                            onChange={e => setNewSubtaskTitle(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
+                          <button 
+                            onClick={async () => {
+                              if (!newSubtaskTitle.trim()) return;
+                              try {
+                                await workcenterService.createTask({
+                                  title: newSubtaskTitle,
+                                  parent_id: task.id,
+                                  project_id: task.project_id || undefined,
+                                  quarter_id: task.quarter_id || undefined,
+                                  priority: 'medium',
+                                });
+                                setNewSubtaskTitle('');
+                                setInlineAddSubtaskForId(null);
+                                if (onRefresh) onRefresh();
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
 
                       {/* Expandable subtasks list */}
                       {hasSubtasks && isTaskExpanded && (
