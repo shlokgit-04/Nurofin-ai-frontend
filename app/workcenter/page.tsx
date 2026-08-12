@@ -345,11 +345,13 @@ export default function TaskCenterPage() {
   };
 
   const handleSelectTask = async (taskItem: { id: number }) => {
+    // Open modal instantly with cached list information!
+    setDetailOpen(true);
+    const localTask = tasks.find(t => t.id === taskItem.id) || (taskItem as WCTask);
+    setSelectedTask(localTask);
     try {
-      await loadData();
       const fullTask = await workcenterService.getTask(taskItem.id);
       setSelectedTask(fullTask);
-      setDetailOpen(true);
     } catch (err) {
       console.error('Failed to load task details:', err);
     }
@@ -2644,28 +2646,23 @@ function CreateEditTaskDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    setSaving(true);
-    try {
-      await onSave({
-        ...form,
-        assigned_to_id: form.assigned_to_id ? Number(form.assigned_to_id) : 0,
-        reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : 0,
-        project_id: form.project_id ? Number(form.project_id) : 0,
-        quarter_id: form.quarter_id ? Number(form.quarter_id) : 0,
-        estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
-        description: form.description || '',
-        start_date: form.start_date || '',
-        deadline: form.deadline || '',
-        subtasks: subtasks.map(st => ({
-          ...st,
-          assigned_to_id: st.assigned_to_id ? Number(st.assigned_to_id) : 0,
-          estimated_hours: st.estimated_hours ? Number(st.estimated_hours) : 0,
-        }))
-      });
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    onSave({
+      ...form,
+      assigned_to_id: form.assigned_to_id ? Number(form.assigned_to_id) : 0,
+      reviewer_id: form.reviewer_id ? Number(form.reviewer_id) : 0,
+      project_id: form.project_id ? Number(form.project_id) : 0,
+      quarter_id: form.quarter_id ? Number(form.quarter_id) : 0,
+      estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+      description: form.description || '',
+      start_date: form.start_date || '',
+      deadline: form.deadline || '',
+      subtasks: subtasks.map(st => ({
+        ...st,
+        assigned_to_id: st.assigned_to_id ? Number(st.assigned_to_id) : 0,
+        estimated_hours: st.estimated_hours ? Number(st.estimated_hours) : 0,
+      }))
+    }).catch(console.error);
+    onClose();
   };
 
   return (
@@ -2912,20 +2909,15 @@ function TransferDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task || !form.to_user_id || !form.reason.trim()) return;
-    setSaving(true);
-    try {
-      await onSave(task.id, {
-        to_user_id: Number(form.to_user_id),
-        reason: form.reason,
-        current_progress: form.current_progress ? Number(form.current_progress) : undefined,
-        remaining_work: form.remaining_work || undefined,
-        new_deadline: form.new_deadline || undefined,
-        transfer_notes: form.transfer_notes || undefined,
-      });
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    onSave(task.id, {
+      to_user_id: Number(form.to_user_id),
+      reason: form.reason,
+      current_progress: form.current_progress ? Number(form.current_progress) : undefined,
+      remaining_work: form.remaining_work || undefined,
+      new_deadline: form.new_deadline || undefined,
+      transfer_notes: form.transfer_notes || undefined,
+    }).catch(console.error);
+    onClose();
   };
 
   return (

@@ -360,8 +360,11 @@ export default function ProjectsPage() {
 
   const handleWCEditSave = async () => {
     if (!editingWCTask) return;
+    const taskId = editingWCTask.id;
+    // Close instantly!
+    setEditingWCTask(null);
     try {
-      await workcenterService.updateTask(editingWCTask.id, {
+      await workcenterService.updateTask(taskId, {
         title: editForm.title || undefined,
         description: editForm.description || undefined,
         priority: editForm.priority || undefined,
@@ -369,7 +372,6 @@ export default function ProjectsPage() {
         deadline: editForm.deadline || undefined,
         assigned_to_id: editForm.assigned_to_id ? parseInt(editForm.assigned_to_id) : undefined,
       });
-      setEditingWCTask(null);
       await loadProjectTasks(selectedProjectId);
       const refreshed = await projectsService.getProjects();
       setProjects(refreshed);
@@ -380,14 +382,16 @@ export default function ProjectsPage() {
 
   const handleWCTransfer = async () => {
     if (!transferWCTask || !transferTo) return;
+    const taskId = transferWCTask.id;
+    // Close instantly!
+    setTransferWCTask(null);
+    setTransferTo('');
+    setTransferReason('');
     try {
-      await workcenterService.transferTask(transferWCTask.id, {
+      await workcenterService.transferTask(taskId, {
         to_user_id: parseInt(transferTo),
         reason: transferReason || 'Transferred from Projects',
       });
-      setTransferWCTask(null);
-      setTransferTo('');
-      setTransferReason('');
       await loadProjectTasks(selectedProjectId);
     } catch (err) {
       console.error(err);
