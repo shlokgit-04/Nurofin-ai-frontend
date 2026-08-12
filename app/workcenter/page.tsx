@@ -2340,46 +2340,10 @@ function TaskDetailDialog({
                   })}
                   {(!task.subtasks || task.subtasks.length === 0) && (
                     <div className="text-center py-4 text-[10px] text-text-muted border border-dashed border-border-subtle rounded-lg">
-                      No subtasks created yet. Add one below.
+                      No subtasks created yet.
                     </div>
                   )}
                 </div>
-
-                <form onSubmit={handleAddSubtask} className="flex gap-2 items-center mt-2">
-                  <Input
-                    type="text"
-                    placeholder="New subtask title..."
-                    value={newSubtaskTitle}
-                    onChange={e => setNewSubtaskTitle(e.target.value)}
-                    className="h-8 text-xs flex-1"
-                    required
-                  />
-                  <Input
-                    type="text"
-                    placeholder="Description..."
-                    value={newSubtaskDescription}
-                    onChange={e => setNewSubtaskDescription(e.target.value)}
-                    className="h-8 text-xs flex-1"
-                  />
-                  <select
-                    value={newSubtaskAssigneeId}
-                    onChange={e => setNewSubtaskAssigneeId(e.target.value)}
-                    className="h-8 bg-background-secondary border border-border-subtle rounded px-2 text-[10px] text-text-primary outline-none max-w-[120px]"
-                  >
-                    <option value="">Teammate...</option>
-                    {allUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={addingSubtask || !newSubtaskTitle.trim()}
-                    className="h-8 px-3 bg-accent-blue hover:bg-accent-blue-hover text-white text-[10px] font-bold rounded shadow transition-all disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {addingSubtask ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                    Add
-                  </button>
-                </form>
               </div>
             )}
 
