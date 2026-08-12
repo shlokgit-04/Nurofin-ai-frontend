@@ -11,6 +11,8 @@ export interface UserProfile {
   phone?: string;
   username?: string;
   is_active?: boolean;
+  salary?: number;
+  performance_score?: number;
 }
 export interface User {
   id: string;
@@ -78,10 +80,14 @@ export interface Task {
   };
   projectId?: string;
   projectName?: string;
-  comments?: TaskComment[];
+  project?: { id?: string; name?: string };
+  labels?: string[];
+  estimatedHours?: number;
+  completedAt?: string;
   scheduledDate?: string;
   scheduledStartTime?: string;
   scheduledEndTime?: string;
+  comments?: TaskComment[];
 }
 
 export interface MeetingParticipant {
@@ -162,8 +168,18 @@ export interface Meeting {
   mom_questions?: string[];
 }
 
-export type IssueStatus = 'open' | 'in_progress' | 'resolved';
+export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type IssueSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface IssueFollowup {
+  id: string;
+  issue_id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar?: string;
+  message: string;
+  created_at: string;
+}
 
 export interface Issue {
   id: string;
@@ -173,19 +189,122 @@ export interface Issue {
   severity: IssueSeverity;
   assignedTo: string;
   createdAt: string;
+  category?: string;
+  deadline?: string;
+  priority?: string;
   projectId?: string;
+  projectName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  assigneeAvatar?: string;
+  reporterId?: string;
+  reporterName?: string;
+  reporterAvatar?: string;
+  followupCount?: number;
+  followups?: IssueFollowup[];
 }
+
+export type FinanceRecordType = 'budget' | 'expense' | 'salary' | 'vendor_payment' | 'renewal' | 'revenue' | 'other';
 
 export interface FinanceRecord {
   id: string;
-  category: 'vendor_payment' | 'expense' | 'budget' | 'renewal';
   title: string;
+  description?: string;
+  record_type?: FinanceRecordType;
+  category?: FinanceRecordType;
   amount: number;
   dueDate: string;
-  status: 'paid' | 'pending' | 'overdue' | 'approved';
+  status: string;
+  currency?: string;
   vendor?: string;
   department?: string;
+  cost_category?: string;
+  project_id?: string;
+  project_name?: string;
+  user_id?: string;
+  user_name?: string;
+  notes?: string;
+  createdAt?: string;
   chartData?: { name: string; value: number }[];
+  _urgency?: 'normal' | 'warning' | 'critical' | 'overdue';
+}
+
+export type CostCategory =
+  | 'cloud'
+  | 'office'
+  | 'internet'
+  | 'software'
+  | 'hardware'
+  | 'marketing'
+  | 'travel'
+  | 'legal'
+  | 'insurance'
+  | 'contractor'
+  | 'other_expense';
+
+export interface FinanceAlert {
+  severity: 'overdue' | 'upcoming';
+  record_id: number;
+  title: string;
+  record_type: string;
+  amount: number;
+  currency: string;
+  due_date: string;
+  days_overdue?: number;
+  days_remaining?: number;
+}
+
+export interface FinanceTracker {
+  vendor_payments: FinanceRecord[];
+  salaries: FinanceRecord[];
+  renewals: FinanceRecord[];
+  cloud_costs: FinanceRecord[];
+  office_expenses: FinanceRecord[];
+  budget_commitments: FinanceRecord[];
+  outstanding_invoices: FinanceRecord[];
+  alerts: FinanceAlert[];
+  summary: {
+    upcoming_payments_total: number;
+    overdue_total: number;
+    vendor_payments_count: number;
+    salaries_count: number;
+    renewals_count: number;
+    cloud_costs_count: number;
+    office_expenses_count: number;
+    budget_commitments_count: number;
+    outstanding_invoices_count: number;
+    alerts_count: number;
+  };
+}
+
+export interface ProjectBudget {
+  id: string;
+  project_id: string;
+  name: string;
+  status?: string;
+  budget: number;
+  spending: number;
+  remaining: number;
+}
+
+export interface PerformanceReview {
+  id: string;
+  user_id: string;
+  user_name?: string;
+  user_avatar?: string;
+  user_role?: string;
+  user_department?: string;
+  quarter_id?: number;
+  quarter_name?: string;
+  score: number;
+  rating?: string;
+  comments?: string;
+  salary_before?: number;
+  salary_after?: number;
+  increment_pct?: number;
+  reviewed_by_id?: number;
+  reviewed_by_name?: string;
+  created_at?: string;
 }
 
 export interface NotificationItem {

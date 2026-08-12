@@ -74,9 +74,11 @@ interface AppState {
   // Issue Actions
   addIssue: (issue: Issue) => void;
   updateIssue: (id: string, updates: Partial<Issue>) => void;
+  setIssues: (issues: Issue[]) => void;
 
   // Finance Actions
   addFinanceRecord: (record: FinanceRecord) => void;
+  setFinanceRecords: (records: FinanceRecord[]) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -223,9 +225,11 @@ export const useStore = create<AppState>((set) => ({
   updateIssue: (id, updates) => set((state) => ({
     issues: state.issues.map(i => i.id === id ? { ...i, ...updates } : i)
   })),
+  setIssues: (issues) => set({ issues }),
 
   // Finance Actions
   addFinanceRecord: (record) => set((state) => ({
     financeRecords: [...state.financeRecords, record]
   })),
+  setFinanceRecords: (financeRecords) => set({ financeRecords }),
 }));

@@ -25,6 +25,10 @@ const CATEGORY_MAP: Record<string, NotificationItem['category']> = {
   meeting_task_assigned: 'tasks',
   project_update: 'general',
   finance_reminder: 'finance',
+  issue_assigned: 'tasks',
+  issue_followup: 'general',
+  issue_status_changed: 'alerts',
+  performance_reviewed: 'finance',
 };
 
 function mapNotification(backendNotif: any): NotificationItem {
