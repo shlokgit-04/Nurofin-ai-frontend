@@ -2139,6 +2139,20 @@ function GroupedTaskFeed({
                       {hasSubtasks && isTaskExpanded && (
                         <div className="pl-6 pt-3 border-t border-border-subtle/30 space-y-2">
                           <div className="text-[9px] font-bold uppercase tracking-wider text-text-muted select-none">Subtasks</div>
+                          
+                          {/* Subtasks Headers Row (hidden on mobile) */}
+                          <div className="hidden lg:flex items-center p-2 bg-background-secondary/30 rounded-lg border border-border-subtle/20 text-[9px] font-bold text-text-muted uppercase tracking-wider select-none gap-4">
+                            <div className="flex-1 min-w-0 pr-4 pl-6">Subtask Title</div>
+                            <div className="w-44 flex-shrink-0">Description</div>
+                            <div className="w-24 flex-shrink-0">Start Date</div>
+                            <div className="w-24 flex-shrink-0">End Date</div>
+                            <div className="w-24 flex-shrink-0">Overdue Days</div>
+                            <div className="w-28 flex-shrink-0">Assignee</div>
+                            <div className="w-36 flex-shrink-0">Transferred Info</div>
+                            <div className="w-28 flex-shrink-0">Status</div>
+                            <div className="w-8 flex-shrink-0 text-right"></div>
+                          </div>
+
                           <div className="grid grid-cols-1 gap-1.5">
                             {task.subtasks.map(st => {
                               const isCompleted = st.status === 'completed' || st.status === 'done';
@@ -2149,35 +2163,155 @@ function GroupedTaskFeed({
                                     e.stopPropagation();
                                     onSelectTask(st);
                                   }}
-                                  className="flex items-center justify-between gap-3 p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors"
+                                  className="p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-[11px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
-                                    <span className={cn("text-[11px] font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                    {st.assigned_to_name && (
-                                      <span className="text-[9px] bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold">
-                                        {st.assigned_to_name}
-                                      </span>
-                                    )}
-                                    <select
-                                      value={st.status === 'done' ? 'completed' : st.status}
-                                      onChange={e => onStatusChange(st.id, e.target.value)}
-                                      className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
-                                    >
-                                      {STATUS_OPTIONS.map(o => (
-                                        <option key={o.value} value={o.value}>{o.label}</option>
-                                      ))}
-                                    </select>
-                                    {onDeleteTask && (
-                                      <button 
-                                        onClick={() => onDeleteTask(st.id)} 
-                                        className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
+                                  {/* Desktop columns layout */}
+                                  <div className="hidden lg:flex items-center w-full gap-4">
+                                    {/* 1. Title */}
+                                    <div className="flex-1 min-w-0 flex items-center gap-2 pr-4 pl-2">
+                                      <div className={cn("w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] font-bold flex-shrink-0", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                      <span className={cn("font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                    </div>
+
+                                    {/* 1.5 Description */}
+                                    <div className="w-44 flex-shrink-0 text-[10px] text-text-muted truncate pr-2 font-medium" title={st.description || ''}>
+                                      {st.description ? st.description : '—'}
+                                    </div>
+
+                                    {/* 2. Start Date */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.start_date ? st.start_date : '—'}
+                                    </div>
+
+                                    {/* 3. End Date */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.deadline ? st.deadline : '—'}
+                                    </div>
+
+                                    {/* 4. Overdue Days */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold">
+                                      {(() => {
+                                        if (isCompleted || !st.deadline) return <span className="text-text-muted">—</span>;
+                                        const todayDate = new Date();
+                                        todayDate.setHours(0, 0, 0, 0);
+                                        const dlDate = new Date(st.deadline);
+                                        dlDate.setHours(0, 0, 0, 0);
+                                        if (todayDate > dlDate) {
+                                          const diffTime = Math.abs(todayDate.getTime() - dlDate.getTime());
+                                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                          return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
+                                        }
+                                        return <span className="text-text-muted">—</span>;
+                                      })()}
+                                    </div>
+
+                                    {/* 5. Assignee */}
+                                    <div className="w-28 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.assigned_to_name ? (
+                                        <span className="bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold inline-block max-w-[100px] truncate">
+                                          {st.assigned_to_name.split(' ')[0]}
+                                        </span>
+                                      ) : (
+                                        <span className="text-text-muted select-none">—</span>
+                                      )}
+                                    </div>
+
+                                    {/* 6. Transferred Info */}
+                                    <div className="w-36 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
+                                      {(st as any).transfer_date && (st as any).transfer_to_name ? (
+                                        <div className="flex flex-col min-w-0" title={`Transferred to ${(st as any).transfer_to_name} on ${(st as any).transfer_date}`}>
+                                          <span className="text-accent-blue text-[9px] bg-accent-blue/5 border border-accent-blue/10 px-1.5 py-0.5 rounded-md inline-block max-w-max truncate">
+                                            {(st as any).transfer_date}
+                                          </span>
+                                          <span className="text-[9px] text-text-muted truncate mt-0.5">
+                                            to {(st as any).transfer_to_name.split(' ')[0]}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-text-muted pl-4">—</span>
+                                      )}
+                                    </div>
+
+                                    {/* 7. Status */}
+                                    <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                      <select
+                                        value={st.status === 'done' ? 'completed' : st.status}
+                                        onChange={e => onStatusChange(st.id, e.target.value)}
+                                        className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold w-full"
                                       >
-                                        <Trash className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
+                                        {STATUS_OPTIONS.map(o => (
+                                          <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* 8. Delete Button */}
+                                    <div className="w-8 flex-shrink-0 text-right" onClick={e => e.stopPropagation()}>
+                                      {onDeleteTask && (
+                                        <button 
+                                          onClick={() => onDeleteTask(st.id)} 
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors inline-block"
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Mobile layout */}
+                                  <div className="flex flex-col lg:hidden w-full gap-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className={cn("w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] font-bold flex-shrink-0", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                      <span className={cn("font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                    </div>
+
+                                    {st.description && <div className="text-[10px] text-text-muted/80 italic pl-6">{st.description}</div>}
+
+                                    <div className="flex flex-wrap items-center gap-3 text-[10px] text-text-muted pl-6">
+                                      {st.start_date && <span>Start: {st.start_date}</span>}
+                                      {st.deadline && <span>End: {st.deadline}</span>}
+                                      {st.deadline && !isCompleted && (
+                                        (() => {
+                                          const todayDate = new Date();
+                                          todayDate.setHours(0, 0, 0, 0);
+                                          const dlDate = new Date(st.deadline);
+                                          dlDate.setHours(0, 0, 0, 0);
+                                          if (todayDate > dlDate) {
+                                            const diffDays = Math.ceil(Math.abs(todayDate.getTime() - dlDate.getTime()) / (1000 * 60 * 60 * 24));
+                                            return <span className="text-accent-red font-bold">{diffDays}d overdue</span>;
+                                          }
+                                          return null;
+                                        })()
+                                      )}
+                                      {st.assigned_to_name && <span className="font-bold">Assigned to: {st.assigned_to_name}</span>}
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 pl-6 pt-1 border-t border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                                      <div className="flex items-center gap-2">
+                                        {(st as any).transfer_date && (st as any).transfer_to_name && (
+                                          <span className="text-[9px] text-text-muted">Transferred: {(st as any).transfer_date} to {(st as any).transfer_to_name}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={st.status === 'done' ? 'completed' : st.status}
+                                          onChange={e => onStatusChange(st.id, e.target.value)}
+                                          className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
+                                        >
+                                          {STATUS_OPTIONS.map(o => (
+                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                          ))}
+                                        </select>
+                                        {onDeleteTask && (
+                                          <button 
+                                            onClick={() => onDeleteTask(st.id)} 
+                                            className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
+                                          >
+                                            <Trash className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               );
