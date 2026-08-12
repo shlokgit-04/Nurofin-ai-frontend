@@ -1563,11 +1563,12 @@ function GroupedTaskFeed({
                             if (task.status === 'completed' || task.status === 'done' || !task.deadline) return <span className="text-text-muted">—</span>;
                             const today = new Date();
                             today.setHours(0, 0, 0, 0);
-                            const dlDate = new Date(task.deadline);
+                            const [yr, mo, dy] = task.deadline.split('-').map(Number);
+                            const dlDate = new Date(yr, mo - 1, dy);
                             dlDate.setHours(0, 0, 0, 0);
                             if (today > dlDate) {
                               const diffTime = Math.abs(today.getTime() - dlDate.getTime());
-                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
                               return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
                             }
                             return <span className="text-text-muted">—</span>;
@@ -1961,11 +1962,12 @@ function GroupedTaskFeed({
                                         if (isCompleted || !st.deadline) return <span className="text-text-muted">—</span>;
                                         const todayDate = new Date();
                                         todayDate.setHours(0, 0, 0, 0);
-                                        const dlDate = new Date(st.deadline);
+                                        const [yr, mo, dy] = st.deadline.split('-').map(Number);
+                                        const dlDate = new Date(yr, mo - 1, dy);
                                         dlDate.setHours(0, 0, 0, 0);
                                         if (todayDate > dlDate) {
                                           const diffTime = Math.abs(todayDate.getTime() - dlDate.getTime());
-                                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
                                           return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
                                         }
                                         return <span className="text-text-muted">—</span>;
@@ -2029,10 +2031,11 @@ function GroupedTaskFeed({
                                         (() => {
                                           const todayDate = new Date();
                                           todayDate.setHours(0, 0, 0, 0);
-                                          const dlDate = new Date(st.deadline);
+                                          const [yr, mo, dy] = st.deadline.split('-').map(Number);
+                                          const dlDate = new Date(yr, mo - 1, dy);
                                           dlDate.setHours(0, 0, 0, 0);
                                           if (todayDate > dlDate) {
-                                            const diffDays = Math.ceil(Math.abs(todayDate.getTime() - dlDate.getTime()) / (1000 * 60 * 60 * 24));
+                                            const diffDays = Math.round(Math.abs(todayDate.getTime() - dlDate.getTime()) / (1000 * 60 * 60 * 24));
                                             return <span className="text-accent-red font-bold">{diffDays}d overdue</span>;
                                           }
                                           return null;
