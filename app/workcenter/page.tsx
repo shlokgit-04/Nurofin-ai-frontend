@@ -1495,10 +1495,13 @@ function GroupedTaskFeed({
                 {colTasks.length > 0 && (
                   <div className="hidden lg:flex items-center p-3.5 bg-background-secondary/40 border-b border-border-subtle text-[10px] font-extrabold text-text-muted uppercase tracking-wider select-none gap-4">
                     <div className="flex-1 min-w-0 pr-4">Task & Project</div>
-                    <div className="w-40 flex-shrink-0">Subtasks Progress</div>
-                    <div className="w-20 flex-shrink-0">Priority</div>
-                    <div className="w-28 flex-shrink-0">Deadline</div>
+                    <div className="w-24 flex-shrink-0">Start Date</div>
+                    <div className="w-24 flex-shrink-0">End Date</div>
+                    <div className="w-24 flex-shrink-0">Overdue Days</div>
                     <div className="w-28 flex-shrink-0">Assignee</div>
+                    <div className="w-36 flex-shrink-0">Transferred Info</div>
+                    <div className="w-32 flex-shrink-0">Subtasks Progress</div>
+                    <div className="w-20 flex-shrink-0">Priority</div>
                     <div className="w-28 flex-shrink-0">View Control</div>
                     <div className="w-24 flex-shrink-0">Quick Add</div>
                     <div className="w-28 flex-shrink-0">Status</div>
@@ -1543,40 +1546,31 @@ function GroupedTaskFeed({
                           </div>
                         </div>
 
-                        {/* 2. Subtasks Progress */}
-                        <div className="w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                          {totalSubtasks > 0 ? (
-                            <div className="pr-4">
-                              <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
-                                <span>Subtasks</span>
-                                <span>{completedSubtasks}/{totalSubtasks}</span>
-                              </div>
-                              <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
-                                <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-text-muted select-none pl-2">—</span>
-                          )}
+                        {/* 2. Start Date */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                          {task.start_date ? task.start_date : '—'}
                         </div>
 
-                        {/* 3. Priority */}
-                        <div className="w-20 flex-shrink-0">
-                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColor(task.priority))}>
-                            {task.priority}
-                          </span>
+                        {/* 3. End Date */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                          {task.deadline ? task.deadline : '—'}
                         </div>
 
-                        {/* 4. Deadline */}
-                        <div className="w-28 flex-shrink-0">
-                          {task.deadline ? (
-                            <span className={cn("text-[10px] font-bold flex items-center gap-1 select-none", isOverdue ? "text-accent-red" : "text-text-muted")}>
-                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                              {isOverdue ? 'Overdue' : task.deadline}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-text-muted select-none">—</span>
-                          )}
+                        {/* 4. Overdue Days */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold">
+                          {(() => {
+                            if (task.status === 'completed' || task.status === 'done' || !task.deadline) return <span className="text-text-muted">—</span>;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const dlDate = new Date(task.deadline);
+                            dlDate.setHours(0, 0, 0, 0);
+                            if (today > dlDate) {
+                              const diffTime = Math.abs(today.getTime() - dlDate.getTime());
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                              return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
+                            }
+                            return <span className="text-text-muted">—</span>;
+                          })()}
                         </div>
 
                         {/* 5. Assignee */}
@@ -1595,13 +1589,53 @@ function GroupedTaskFeed({
                           )}
                         </div>
 
-                        {/* 6. View Subtask Button */}
+                        {/* 6. Transferred Info */}
+                        <div className="w-36 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
+                          {task.transfer_date && task.transfer_to_name ? (
+                            <div className="flex flex-col min-w-0" title={`Transferred to ${task.transfer_to_name} on ${task.transfer_date}`}>
+                              <span className="text-accent-blue text-[9px] bg-accent-blue/5 border border-accent-blue/10 px-1.5 py-0.5 rounded-md inline-block max-w-max truncate">
+                                {task.transfer_date}
+                              </span>
+                              <span className="text-[9px] text-text-muted truncate mt-0.5">
+                                to {task.transfer_to_name.split(' ')[0]}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-text-muted pl-4">—</span>
+                          )}
+                        </div>
+
+                        {/* 7. Subtasks Progress */}
+                        <div className="w-32 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {totalSubtasks > 0 ? (
+                            <div>
+                              <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
+                                <span>Subtasks</span>
+                                <span>{completedSubtasks}/{totalSubtasks}</span>
+                              </div>
+                              <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
+                                <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none pl-2">—</span>
+                          )}
+                        </div>
+
+                        {/* 8. Priority */}
+                        <div className="w-20 flex-shrink-0">
+                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColor(task.priority))}>
+                            {task.priority}
+                          </span>
+                        </div>
+
+                        {/* 9. View Subtask Button */}
                         <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           {hasSubtasks ? (
                             <button
                               onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleExpandTask(task.id, e);
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
                               }}
                               className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
                             >
@@ -1613,7 +1647,7 @@ function GroupedTaskFeed({
                           )}
                         </div>
 
-                        {/* 7. Add Subtask Button */}
+                        {/* 10. Add Subtask Button */}
                         <div className="w-24 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           <button
                             onClick={(e) => {
@@ -1627,7 +1661,7 @@ function GroupedTaskFeed({
                           </button>
                         </div>
 
-                        {/* 8. Status Select */}
+                        {/* 11. Status Select */}
                         <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           <select
                             value={task.status}
@@ -1640,7 +1674,7 @@ function GroupedTaskFeed({
                           </select>
                         </div>
 
-                        {/* 9. Action Buttons */}
+                        {/* 12. Action Buttons */}
                         <div className="w-24 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                           {onEditTask && (
                             <button 

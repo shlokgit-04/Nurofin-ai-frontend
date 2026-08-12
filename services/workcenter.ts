@@ -55,6 +55,8 @@ export interface WCTask {
   }[];
   parent_title?: string | null;
   created_at: string | null;
+  transfer_date?: string | null;
+  transfer_to_name?: string | null;
 }
 
 export interface WCTasksResponse {
