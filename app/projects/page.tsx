@@ -85,6 +85,9 @@ export default function ProjectsPage() {
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [subtaskDescription, setSubtaskDescription] = useState('');
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
+  const [subtaskPriority, setSubtaskPriority] = useState('medium');
+  const [subtaskStartDate, setSubtaskStartDate] = useState('');
+  const [subtaskDeadline, setSubtaskDeadline] = useState('');
   // Inline edit state
   const [editingWCTask, setEditingWCTask] = useState<WCTask | null>(null);
   const [editForm, setEditForm] = useState<{title: string; description: string; priority: string; status: string; deadline: string; assigned_to_id: string}>({title:'', description:'', priority:'medium', status:'in_progress', deadline:'', assigned_to_id:''});
@@ -295,10 +298,16 @@ export default function ProjectsPage() {
         project_id: parseInt(selectedProjectId),
         assigned_to_id: subtaskAssigneeId ? parseInt(subtaskAssigneeId) : undefined,
         description: subtaskDescription || undefined,
+        priority: subtaskPriority || undefined,
+        start_date: subtaskStartDate || undefined,
+        deadline: subtaskDeadline || undefined,
       });
       setSubtaskTitle('');
       setSubtaskDescription('');
       setSubtaskAssigneeId('');
+      setSubtaskPriority('medium');
+      setSubtaskStartDate('');
+      setSubtaskDeadline('');
       setAddSubtaskForId(null);
       await loadProjectTasks(selectedProjectId);
       const refreshed = await projectsService.getProjects();
@@ -969,9 +978,13 @@ export default function ProjectsPage() {
                         }}
                         onViewHistory={handleViewHistory}
                         onAddSubtask={(id) => {
-                          setAddSubtaskForId(addSubtaskForId === id ? null : id);
+                          setAddSubtaskForId(id);
                           setSubtaskTitle('');
+                          setSubtaskDescription('');
                           setSubtaskAssigneeId('');
+                          setSubtaskPriority('medium');
+                          setSubtaskStartDate('');
+                          setSubtaskDeadline('');
                         }}
                         addSubtaskForId={addSubtaskForId}
                         setAddSubtaskForId={setAddSubtaskForId}
@@ -1131,6 +1144,51 @@ export default function ProjectsPage() {
                     <DialogFooter className="pt-3 flex gap-2 justify-end">
                       <button onClick={() => setEditingWCTask(null)} className="px-3 py-1.5 border border-border-subtle text-text-secondary text-xs font-semibold rounded-lg hover:bg-surface-hover transition-all">Cancel</button>
                       <button onClick={handleWCEditSave} className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-lg shadow transition-all">Save Changes</button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {/* Add Subtask Dialog */}
+              {addSubtaskForId && (
+                <Dialog open={!!addSubtaskForId} onOpenChange={() => setAddSubtaskForId(null)}>
+                  <DialogContent className="max-w-md bg-background-secondary border border-border-subtle rounded-2xl shadow-2xl p-6">
+                    <DialogHeader><DialogTitle className="text-sm font-extrabold">Add New Subtask</DialogTitle></DialogHeader>
+                    <div className="space-y-3 pt-2 text-xs">
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Title *</label><input type="text" value={subtaskTitle} onChange={e => setSubtaskTitle(e.target.value)} className="w-full bg-background-primary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" placeholder="Subtask title..." required /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-text-secondary uppercase">Description</label><textarea value={subtaskDescription} onChange={e => setSubtaskDescription(e.target.value)} rows={2} className="w-full bg-background-primary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" placeholder="Subtask description..." /></div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">Priority</label>
+                          <select value={subtaskPriority} onChange={e => setSubtaskPriority(e.target.value)} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer font-medium">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">Assignee</label>
+                          <select value={subtaskAssigneeId} onChange={e => setSubtaskAssigneeId(e.target.value)} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer font-medium">
+                            <option value="">Unassigned</option>
+                            {availableUsers.map(u => (<option key={u.id} value={u.id}>{u.name}</option>))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">Start Date</label>
+                          <input type="date" value={subtaskStartDate} onChange={e => setSubtaskStartDate(e.target.value)} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-text-secondary uppercase">Deadline</label>
+                          <input type="date" value={subtaskDeadline} onChange={e => setSubtaskDeadline(e.target.value)} className="w-full h-8 bg-background-primary border border-border-subtle rounded px-2 text-xs text-text-primary outline-none focus:border-accent-blue cursor-pointer" />
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter className="pt-3 flex gap-2 justify-end">
+                      <button onClick={() => setAddSubtaskForId(null)} className="px-3 py-1.5 border border-border-subtle text-text-secondary text-xs font-semibold rounded-lg hover:bg-surface-hover transition-all">Cancel</button>
+                      <button onClick={() => handleAddSubtask(addSubtaskForId!)} disabled={!subtaskTitle.trim()} className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-hover text-white text-xs font-semibold rounded-lg shadow transition-all disabled:opacity-50">Add Subtask</button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -2118,43 +2176,7 @@ function GroupedTaskFeed({
                         </div>
                       </div>
 
-                      {/* Inline Add Subtask input */}
-                      {addSubtaskForId === task.id && setSubtaskTitle && handleAddSubtaskSubmit && (
-                        <div className="px-4 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
-                          <input 
-                            type="text" 
-                            placeholder="Subtask title..." 
-                            value={subtaskTitle || ''} 
-                            onChange={e => setSubtaskTitle(e.target.value)} 
-                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
-                          />
-                          <input 
-                            type="text" 
-                            placeholder="Description..." 
-                            value={subtaskDescription || ''} 
-                            onChange={e => setSubtaskDescription && setSubtaskDescription(e.target.value)} 
-                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
-                          />
-                          {users && setSubtaskAssigneeId && (
-                            <select
-                              value={subtaskAssigneeId || ''}
-                              onChange={e => setSubtaskAssigneeId(e.target.value)}
-                              className="bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary outline-none focus:border-accent-blue cursor-pointer font-bold"
-                            >
-                              <option value="">Assign To...</option>
-                              {users.map(u => (
-                                <option key={u.id} value={String(u.id)}>{u.name}</option>
-                              ))}
-                            </select>
-                          )}
-                          <button 
-                            onClick={() => handleAddSubtaskSubmit(task.id)} 
-                            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      )}
+
 
                       {/* Expandable subtasks list */}
                       {hasSubtasks && isTaskExpanded && (
@@ -2163,15 +2185,15 @@ function GroupedTaskFeed({
                           
                           {/* Subtasks Headers Row (hidden on mobile) */}
                           <div className="hidden lg:flex items-center p-2 bg-background-secondary/30 rounded-lg border border-border-subtle/20 text-[9px] font-bold text-text-muted uppercase tracking-wider select-none gap-4 min-w-[990px]">
-                            <div className="flex-1 min-w-[120px] pr-4 pl-6">Subtask Title</div>
-                            <div className="w-44 flex-shrink-0">Description</div>
-                            <div className="w-24 flex-shrink-0">Start Date</div>
-                            <div className="w-24 flex-shrink-0">End Date</div>
-                            <div className="w-24 flex-shrink-0">Overdue Days</div>
-                            <div className="w-28 flex-shrink-0">Assignee</div>
-                            <div className="w-36 flex-shrink-0">Transferred Info</div>
-                            <div className="w-28 flex-shrink-0">Status</div>
-                            <div className="w-8 flex-shrink-0 text-right"></div>
+                            <div className="flex-1 min-w-[120px] pr-4 pl-[30px]">Subtask Title</div>
+                            <div className="w-32 flex-shrink-0">Description</div>
+                            <div className="w-20 flex-shrink-0">Start Date</div>
+                            <div className="w-20 flex-shrink-0">End Date</div>
+                            <div className="w-20 flex-shrink-0">Overdue Days</div>
+                            <div className="w-20 flex-shrink-0">Assignee</div>
+                            <div className="w-24 flex-shrink-0">Transferred Info</div>
+                            <div className="w-24 flex-shrink-0">Status</div>
+                            <div className="w-14 flex-shrink-0 text-right">Actions</div>
                           </div>
 
                           <div className="grid grid-cols-1 gap-1.5">
@@ -2267,12 +2289,22 @@ function GroupedTaskFeed({
                                       </select>
                                     </div>
 
-                                    {/* 8. Delete Button */}
-                                    <div className="w-8 flex-shrink-0 text-right" onClick={e => e.stopPropagation()}>
+                                    {/* 8. Actions */}
+                                    <div className="w-14 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                      {onEditTask && (
+                                        <button 
+                                          onClick={() => onEditTask(st as any)} 
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-blue transition-colors" 
+                                          title="Edit Subtask"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
                                       {onDeleteTask && (
                                         <button 
                                           onClick={() => onDeleteTask(st.id)} 
-                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors inline-block"
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors" 
+                                          title="Delete Subtask"
                                         >
                                           <Trash className="w-3.5 h-3.5" />
                                         </button>
