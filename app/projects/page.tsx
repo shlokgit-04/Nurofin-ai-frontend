@@ -83,6 +83,7 @@ export default function ProjectsPage() {
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set());
   const [addSubtaskForId, setAddSubtaskForId] = useState<number | null>(null);
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [subtaskDescription, setSubtaskDescription] = useState('');
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
   // Inline edit state
   const [editingWCTask, setEditingWCTask] = useState<WCTask | null>(null);
@@ -293,8 +294,10 @@ export default function ProjectsPage() {
         parent_id: parentId,
         project_id: parseInt(selectedProjectId),
         assigned_to_id: subtaskAssigneeId ? parseInt(subtaskAssigneeId) : undefined,
+        description: subtaskDescription || undefined,
       });
       setSubtaskTitle('');
+      setSubtaskDescription('');
       setSubtaskAssigneeId('');
       setAddSubtaskForId(null);
       await loadProjectTasks(selectedProjectId);
@@ -357,8 +360,11 @@ export default function ProjectsPage() {
 
   const handleWCEditSave = async () => {
     if (!editingWCTask) return;
+    const taskId = editingWCTask.id;
+    // Close instantly!
+    setEditingWCTask(null);
     try {
-      await workcenterService.updateTask(editingWCTask.id, {
+      await workcenterService.updateTask(taskId, {
         title: editForm.title || undefined,
         description: editForm.description || undefined,
         priority: editForm.priority || undefined,
@@ -366,7 +372,6 @@ export default function ProjectsPage() {
         deadline: editForm.deadline || undefined,
         assigned_to_id: editForm.assigned_to_id ? parseInt(editForm.assigned_to_id) : undefined,
       });
-      setEditingWCTask(null);
       await loadProjectTasks(selectedProjectId);
       const refreshed = await projectsService.getProjects();
       setProjects(refreshed);
@@ -377,14 +382,16 @@ export default function ProjectsPage() {
 
   const handleWCTransfer = async () => {
     if (!transferWCTask || !transferTo) return;
+    const taskId = transferWCTask.id;
+    // Close instantly!
+    setTransferWCTask(null);
+    setTransferTo('');
+    setTransferReason('');
     try {
-      await workcenterService.transferTask(transferWCTask.id, {
+      await workcenterService.transferTask(taskId, {
         to_user_id: parseInt(transferTo),
         reason: transferReason || 'Transferred from Projects',
       });
-      setTransferWCTask(null);
-      setTransferTo('');
-      setTransferReason('');
       await loadProjectTasks(selectedProjectId);
     } catch (err) {
       console.error(err);
@@ -970,6 +977,8 @@ export default function ProjectsPage() {
                         setAddSubtaskForId={setAddSubtaskForId}
                         subtaskTitle={subtaskTitle}
                         setSubtaskTitle={setSubtaskTitle}
+                        subtaskDescription={subtaskDescription}
+                        setSubtaskDescription={setSubtaskDescription}
                         subtaskAssigneeId={subtaskAssigneeId}
                         setSubtaskAssigneeId={setSubtaskAssigneeId}
                         handleAddSubtaskSubmit={handleAddSubtask}
@@ -1704,6 +1713,8 @@ function GroupedTaskFeed({
   setAddSubtaskForId,
   subtaskTitle,
   setSubtaskTitle,
+  subtaskDescription,
+  setSubtaskDescription,
   subtaskAssigneeId,
   setSubtaskAssigneeId,
   handleAddSubtaskSubmit,
@@ -1722,6 +1733,8 @@ function GroupedTaskFeed({
   setAddSubtaskForId?: (id: number | null) => void;
   subtaskTitle?: string;
   setSubtaskTitle?: (title: string) => void;
+  subtaskDescription?: string;
+  setSubtaskDescription?: (desc: string) => void;
   subtaskAssigneeId?: string;
   setSubtaskAssigneeId?: (id: string) => void;
   handleAddSubtaskSubmit?: (parentId: number) => void;
@@ -1782,7 +1795,24 @@ function GroupedTaskFeed({
 
             {/* Tasks List */}
             {isGroupExpanded && (
-              <div className="divide-y divide-border-subtle/50 bg-background-primary">
+              <div className="divide-y divide-border-subtle/50 bg-background-primary overflow-x-auto">
+                {/* Column Headers Row */}
+                {colTasks.length > 0 && (
+                  <div className="hidden lg:flex items-center p-3.5 bg-background-secondary/40 border-b border-border-subtle text-[10px] font-extrabold text-text-muted uppercase tracking-wider select-none gap-4">
+                    <div className="flex-1 min-w-0 pr-4">Task & Project</div>
+                    <div className="w-24 flex-shrink-0">Start Date</div>
+                    <div className="w-24 flex-shrink-0">End Date</div>
+                    <div className="w-24 flex-shrink-0">Overdue Days</div>
+                    <div className="w-28 flex-shrink-0">Assignee</div>
+                    <div className="w-36 flex-shrink-0">Transferred Info</div>
+                    <div className="w-32 flex-shrink-0">Subtasks Progress</div>
+                    <div className="w-20 flex-shrink-0">Priority</div>
+                    <div className="w-28 flex-shrink-0">View Control</div>
+                    <div className="w-24 flex-shrink-0">Quick Add</div>
+                    <div className="w-28 flex-shrink-0">Status</div>
+                    <div className="w-24 flex-shrink-0 text-right pr-2">Actions</div>
+                  </div>
+                )}
                 {colTasks.map((task, idx) => {
                   const today = new Date().toISOString().split('T')[0];
                   const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed' && task.status !== 'done';
@@ -1798,19 +1828,79 @@ function GroupedTaskFeed({
                       className="p-3.5 hover:bg-surface-hover/30 transition-all cursor-pointer text-left space-y-3 relative group"
                     >
                       {/* Main Task Metadata Row */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
-                              {idx + 1}. {task.title}
-                            </h4>
-                          </div>
+                      {/* Desktop Aligned Row */}
+                      <div className="hidden lg:flex items-center w-full gap-4">
+                        {/* 1. Title & Project */}
+                        <div className="flex-1 min-w-0 pr-4">
+                          <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
+                            {idx + 1}. {task.title}
+                          </h4>
                         </div>
 
-                        {/* Middle: Subtask completion and progress bar */}
-                        {totalSubtasks > 0 && (
-                          <div className="flex items-center gap-3 w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                            <div className="flex-1">
+                        {/* 2. Start Date */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                          {task.start_date ? task.start_date : '—'}
+                        </div>
+
+                        {/* 3. End Date */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                          {task.deadline ? task.deadline : '—'}
+                        </div>
+
+                        {/* 4. Overdue Days */}
+                        <div className="w-24 flex-shrink-0 text-[10px] font-bold">
+                          {(() => {
+                            if (task.status === 'completed' || task.status === 'done' || !task.deadline) return <span className="text-text-muted">—</span>;
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const [yr, mo, dy] = task.deadline.split('-').map(Number);
+                            const dlDate = new Date(yr, mo - 1, dy);
+                            dlDate.setHours(0, 0, 0, 0);
+                            if (today > dlDate) {
+                              const diffTime = Math.abs(today.getTime() - dlDate.getTime());
+                              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                              return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
+                            }
+                            return <span className="text-text-muted">—</span>;
+                          })()}
+                        </div>
+
+                        {/* 5. Assignee */}
+                        <div className="w-28 flex-shrink-0">
+                          {task.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                              {task.assigned_to_avatar ? (
+                                <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
+                              )}
+                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
+                          )}
+                        </div>
+
+                        {/* 6. Transferred Info */}
+                        <div className="w-36 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
+                          {task.transfer_date && task.transfer_to_name ? (
+                            <div className="flex flex-col min-w-0" title={`Transferred to ${task.transfer_to_name} on ${task.transfer_date}`}>
+                              <span className="text-accent-blue text-[9px] bg-accent-blue/5 border border-accent-blue/10 px-1.5 py-0.5 rounded-md inline-block max-w-max truncate">
+                                {task.transfer_date}
+                              </span>
+                              <span className="text-[9px] text-text-muted truncate mt-0.5">
+                                to {task.transfer_to_name.split(' ')[0]}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-text-muted pl-4">—</span>
+                          )}
+                        </div>
+
+                        {/* 7. Subtasks Progress */}
+                        <div className="w-32 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {totalSubtasks > 0 ? (
+                            <div>
                               <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
                                 <span>Subtasks</span>
                                 <span>{completedSubtasks}/{totalSubtasks}</span>
@@ -1819,11 +1909,104 @@ function GroupedTaskFeed({
                                 <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
                               </div>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none pl-2">—</span>
+                          )}
+                        </div>
 
-                        {/* Right side Metadata & Quick Actions */}
-                        <div className="flex items-center gap-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        {/* 8. Priority */}
+                        <div className="w-20 flex-shrink-0">
+                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColorLocal(task.priority))}>
+                            {task.priority}
+                          </span>
+                        </div>
+
+                        {/* 9. View Subtask Button */}
+                        <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {hasSubtasks ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
+                            >
+                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                              {isTaskExpanded ? 'Hide' : 'View sub task'}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none pl-6">—</span>
+                          )}
+                        </div>
+
+                        {/* 10. Add Subtask Button */}
+                        <div className="w-24 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {onAddSubtask && (
+                            <button
+                              onClick={() => onAddSubtask(task.id)}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 11. Status Select */}
+                        <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <select
+                            value={task.status === 'done' ? 'completed' : task.status}
+                            onChange={e => onStatusChange(task.id, e.target.value)}
+                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1.5 text-text-secondary outline-none cursor-pointer font-bold w-full"
+                          >
+                            {STATUS_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 12. Action Buttons */}
+                        <div className="w-24 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                          {onEditTask && (
+                            <button 
+                              onClick={() => onEditTask(task)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                              title="Edit"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onViewHistory && (
+                            <button 
+                              onClick={() => onViewHistory(task)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                              title="History"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onDeleteTask && (
+                            <button 
+                              onClick={() => onDeleteTask(task.id)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                              title="Delete"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Mobile Layout: Stacked Card Style */}
+                      <div className="flex flex-col lg:hidden gap-3.5">
+                        {/* Title Block */}
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal break-words">
+                            {idx + 1}. {task.title}
+                          </h4>
+                        </div>
+
+                        {/* Middle metadata bar */}
+                        <div className="flex flex-wrap items-center gap-3.5 text-xs">
                           {/* Priority Badge */}
                           <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColorLocal(task.priority))}>
                             {task.priority}
@@ -1839,83 +2022,98 @@ function GroupedTaskFeed({
 
                           {/* Assignee Avatar */}
                           {task.assigned_to_name ? (
-                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                            <div className="flex items-center gap-1.5">
                               {task.assigned_to_avatar ? (
                                 <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
                               ) : (
                                 <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
                               )}
-                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                              <span className="text-[10px] text-text-secondary">{task.assigned_to_name}</span>
                             </div>
                           ) : (
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
                           )}
+                        </div>
 
-                          {/* View Subtask button */}
-                          {hasSubtasks && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpandTask(task.id, e);
-                              }}
-                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                        {/* Progress Bar (Mobile) */}
+                        {totalSubtasks > 0 && (
+                          <div className="bg-background-secondary/50 p-2.5 rounded-lg border border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
+                              <span>Subtasks Progress</span>
+                              <span>{completedSubtasks}/{totalSubtasks}</span>
+                            </div>
+                            <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
+                              <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions Block (Mobile) */}
+                        <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            {hasSubtasks && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpandTask(task.id, e);
+                                }}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                              >
+                                <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                                {isTaskExpanded ? 'Hide' : 'View sub task'}
+                              </button>
+                            )}
+
+                            {onAddSubtask && (
+                              <button
+                                onClick={() => onAddSubtask(task.id)}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-text-muted" /> Subtask
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <select
+                              value={task.status === 'done' ? 'completed' : task.status}
+                              onChange={e => onStatusChange(task.id, e.target.value)}
+                              className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
                             >
-                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
-                              {isTaskExpanded ? 'Hide subtask' : 'View sub task'}
-                            </button>
-                          )}
+                              {STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
 
-                          {/* Add sub task button */}
-                          {onAddSubtask && (
-                            <button
-                              onClick={() => onAddSubtask(task.id)}
-                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
-                            >
-                              <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
-                            </button>
-                          )}
-
-                          {/* Quick Status Dropdown */}
-                          <select
-                            value={task.status === 'done' ? 'completed' : task.status}
-                            onChange={e => onStatusChange(task.id, e.target.value)}
-                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
-                          >
-                            {STATUS_OPTIONS.map(o => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-1">
-                            {onEditTask && (
-                              <button 
-                                onClick={() => onEditTask(task)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
-                                title="Edit"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            {onViewHistory && (
-                              <button 
-                                onClick={() => onViewHistory(task)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
-                                title="History"
-                              >
-                                <History className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {onDeleteTask && (
-                              <button 
-                                onClick={() => onDeleteTask(task.id)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
-                                title="Delete"
-                              >
-                                <Trash className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <div className="flex items-center gap-1 border-l border-border-subtle/40 pl-2">
+                              {onEditTask && (
+                                <button 
+                                  onClick={() => onEditTask(task)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                                  title="Edit"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onViewHistory && (
+                                <button 
+                                  onClick={() => onViewHistory(task)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                                  title="History"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteTask && (
+                                <button 
+                                  onClick={() => onDeleteTask(task.id)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                                  title="Delete"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1928,6 +2126,13 @@ function GroupedTaskFeed({
                             placeholder="Subtask title..." 
                             value={subtaskTitle || ''} 
                             onChange={e => setSubtaskTitle(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
+                          <input 
+                            type="text" 
+                            placeholder="Description..." 
+                            value={subtaskDescription || ''} 
+                            onChange={e => setSubtaskDescription && setSubtaskDescription(e.target.value)} 
                             className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
                           />
                           {users && setSubtaskAssigneeId && (
@@ -1955,6 +2160,20 @@ function GroupedTaskFeed({
                       {hasSubtasks && isTaskExpanded && (
                         <div className="pl-6 pt-3 border-t border-border-subtle/30 space-y-2">
                           <div className="text-[9px] font-bold uppercase tracking-wider text-text-muted select-none">Subtasks</div>
+                          
+                          {/* Subtasks Headers Row (hidden on mobile) */}
+                          <div className="hidden lg:flex items-center p-2 bg-background-secondary/30 rounded-lg border border-border-subtle/20 text-[9px] font-bold text-text-muted uppercase tracking-wider select-none gap-4">
+                            <div className="flex-1 min-w-0 pr-4 pl-6">Subtask Title</div>
+                            <div className="w-44 flex-shrink-0">Description</div>
+                            <div className="w-24 flex-shrink-0">Start Date</div>
+                            <div className="w-24 flex-shrink-0">End Date</div>
+                            <div className="w-24 flex-shrink-0">Overdue Days</div>
+                            <div className="w-28 flex-shrink-0">Assignee</div>
+                            <div className="w-36 flex-shrink-0">Transferred Info</div>
+                            <div className="w-28 flex-shrink-0">Status</div>
+                            <div className="w-8 flex-shrink-0 text-right"></div>
+                          </div>
+
                           <div className="grid grid-cols-1 gap-1.5">
                             {task.subtasks.map(st => {
                               const isCompleted = st.status === 'completed' || st.status === 'done';
@@ -1965,35 +2184,157 @@ function GroupedTaskFeed({
                                     e.stopPropagation();
                                     onSelectTask(st);
                                   }}
-                                  className="flex items-center justify-between gap-3 p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors"
+                                  className="p-2 bg-background-secondary/50 border border-border-subtle/40 rounded-lg hover:bg-surface-hover/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-[11px]"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
-                                    <span className={cn("text-[11px] font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                    {st.assigned_to_name && (
-                                      <span className="text-[9px] bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold">
-                                        {st.assigned_to_name}
-                                      </span>
-                                    )}
-                                    <select
-                                      value={st.status === 'done' ? 'completed' : st.status}
-                                      onChange={e => onStatusChange(st.id, e.target.value)}
-                                      className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
-                                    >
-                                      {STATUS_OPTIONS.map(o => (
-                                        <option key={o.value} value={o.value}>{o.label}</option>
-                                      ))}
-                                    </select>
-                                    {onDeleteTask && (
-                                      <button 
-                                        onClick={() => onDeleteTask(st.id)} 
-                                        className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
+                                  {/* Desktop columns layout */}
+                                  <div className="hidden lg:flex items-center w-full gap-4">
+                                    {/* 1. Title */}
+                                    <div className="flex-1 min-w-0 flex items-center gap-2 pr-4 pl-2">
+                                      <div className={cn("w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] font-bold flex-shrink-0", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                      <span className={cn("font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                    </div>
+
+                                    {/* 1.5 Description */}
+                                    <div className="w-44 flex-shrink-0 text-[10px] text-text-muted truncate pr-2 font-medium" title={st.description || ''}>
+                                      {st.description ? st.description : '—'}
+                                    </div>
+
+                                    {/* 2. Start Date */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.start_date ? st.start_date : '—'}
+                                    </div>
+
+                                    {/* 3. End Date */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.deadline ? st.deadline : '—'}
+                                    </div>
+
+                                    {/* 4. Overdue Days */}
+                                    <div className="w-24 flex-shrink-0 text-[10px] font-bold">
+                                      {(() => {
+                                        if (isCompleted || !st.deadline) return <span className="text-text-muted">—</span>;
+                                        const todayDate = new Date();
+                                        todayDate.setHours(0, 0, 0, 0);
+                                        const [yr, mo, dy] = st.deadline.split('-').map(Number);
+                                        const dlDate = new Date(yr, mo - 1, dy);
+                                        dlDate.setHours(0, 0, 0, 0);
+                                        if (todayDate > dlDate) {
+                                          const diffTime = Math.abs(todayDate.getTime() - dlDate.getTime());
+                                          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                                          return <span className="text-accent-red bg-accent-red/5 border border-accent-red/10 px-2 py-0.5 rounded-full">{diffDays} {diffDays === 1 ? 'day' : 'days'}</span>;
+                                        }
+                                        return <span className="text-text-muted">—</span>;
+                                      })()}
+                                    </div>
+
+                                    {/* 5. Assignee */}
+                                    <div className="w-28 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                                      {st.assigned_to_name ? (
+                                        <span className="bg-background-primary border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary font-bold inline-block max-w-[100px] truncate">
+                                          {st.assigned_to_name.split(' ')[0]}
+                                        </span>
+                                      ) : (
+                                        <span className="text-text-muted select-none">—</span>
+                                      )}
+                                    </div>
+
+                                    {/* 6. Transferred Info */}
+                                    <div className="w-36 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
+                                      {(st as any).transfer_date && (st as any).transfer_to_name ? (
+                                        <div className="flex flex-col min-w-0" title={`Transferred to ${(st as any).transfer_to_name} on ${(st as any).transfer_date}`}>
+                                          <span className="text-accent-blue text-[9px] bg-accent-blue/5 border border-accent-blue/10 px-1.5 py-0.5 rounded-md inline-block max-w-max truncate">
+                                            {(st as any).transfer_date}
+                                          </span>
+                                          <span className="text-[9px] text-text-muted truncate mt-0.5">
+                                            to {(st as any).transfer_to_name.split(' ')[0]}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-text-muted pl-4">—</span>
+                                      )}
+                                    </div>
+
+                                    {/* 7. Status */}
+                                    <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                      <select
+                                        value={st.status === 'done' ? 'completed' : st.status}
+                                        onChange={e => onStatusChange(st.id, e.target.value)}
+                                        className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold w-full"
                                       >
-                                        <Trash className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
+                                        {STATUS_OPTIONS.map(o => (
+                                          <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* 8. Delete Button */}
+                                    <div className="w-8 flex-shrink-0 text-right" onClick={e => e.stopPropagation()}>
+                                      {onDeleteTask && (
+                                        <button 
+                                          onClick={() => onDeleteTask(st.id)} 
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors inline-block"
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Mobile layout */}
+                                  <div className="flex flex-col lg:hidden w-full gap-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className={cn("w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] font-bold flex-shrink-0", isCompleted ? "bg-accent-green border-accent-green text-white" : "border-text-muted/40 text-transparent")}>✓</div>
+                                      <span className={cn("font-medium truncate", isCompleted && "line-through text-text-muted")}>{st.title}</span>
+                                    </div>
+
+                                    {st.description && <div className="text-[10px] text-text-muted/80 italic pl-6">{st.description}</div>}
+
+                                    <div className="flex flex-wrap items-center gap-3 text-[10px] text-text-muted pl-6">
+                                      {st.start_date && <span>Start: {st.start_date}</span>}
+                                      {st.deadline && <span>End: {st.deadline}</span>}
+                                      {st.deadline && !isCompleted && (
+                                        (() => {
+                                          const todayDate = new Date();
+                                          todayDate.setHours(0, 0, 0, 0);
+                                          const [yr, mo, dy] = st.deadline.split('-').map(Number);
+                                          const dlDate = new Date(yr, mo - 1, dy);
+                                          dlDate.setHours(0, 0, 0, 0);
+                                          if (todayDate > dlDate) {
+                                            const diffDays = Math.round(Math.abs(todayDate.getTime() - dlDate.getTime()) / (1000 * 60 * 60 * 24));
+                                            return <span className="text-accent-red font-bold">{diffDays}d overdue</span>;
+                                          }
+                                          return null;
+                                        })()
+                                      )}
+                                      {st.assigned_to_name && <span className="font-bold">Assigned to: {st.assigned_to_name}</span>}
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 pl-6 pt-1 border-t border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                                      <div className="flex items-center gap-2">
+                                        {(st as any).transfer_date && (st as any).transfer_to_name && (
+                                          <span className="text-[9px] text-text-muted">Transferred: {(st as any).transfer_date} to {(st as any).transfer_to_name}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={st.status === 'done' ? 'completed' : st.status}
+                                          onChange={e => onStatusChange(st.id, e.target.value)}
+                                          className="bg-background-primary border border-border-subtle text-[9px] rounded p-0.5 text-text-secondary outline-none cursor-pointer font-bold"
+                                        >
+                                          {STATUS_OPTIONS.map(o => (
+                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                          ))}
+                                        </select>
+                                        {onDeleteTask && (
+                                          <button 
+                                            onClick={() => onDeleteTask(st.id)} 
+                                            className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors"
+                                          >
+                                            <Trash className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               );

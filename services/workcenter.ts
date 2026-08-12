@@ -51,10 +51,14 @@ export interface WCTask {
     assigned_to_name: string | null;
     priority?: string;
     deadline?: string | null;
+    start_date?: string | null;
     assigned_to_avatar?: string | null;
+    description?: string | null;
   }[];
   parent_title?: string | null;
   created_at: string | null;
+  transfer_date?: string | null;
+  transfer_to_name?: string | null;
 }
 
 export interface WCTasksResponse {
