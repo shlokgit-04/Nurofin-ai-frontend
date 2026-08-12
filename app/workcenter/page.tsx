@@ -196,6 +196,7 @@ export default function TaskCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateEdit, setShowCreateEdit] = useState(false);
   const [editingTask, setEditingTask] = useState<WCTask | null>(null);
+  const [createSubtaskForParent, setCreateSubtaskForParent] = useState<WCTask | null>(null);
   const [selectedTask, setSelectedTask] = useState<WCTask | null>(null);
   const [detailDefaultTab, setDetailDefaultTab] = useState<'details' | 'history' | 'transfers'>('details');
   const [detailOpen, setDetailOpen] = useState(false);
@@ -872,6 +873,10 @@ export default function TaskCenterPage() {
                     setEditingTask(task);
                     setShowCreateEdit(true);
                   }}
+                  onAddSubtask={(parentTask) => {
+                    setCreateSubtaskForParent(parentTask);
+                    setShowCreateEdit(true);
+                  }}
                   onViewHistory={(task) => {
                     setDetailDefaultTab('history');
                     handleSelectTask({ id: task.id });
@@ -1232,8 +1237,13 @@ export default function TaskCenterPage() {
       {/* Create / Edit Task Dialog (Wizard Form) */}
       <CreateEditTaskDialog
         open={showCreateEdit}
-        onClose={() => { setShowCreateEdit(false); setEditingTask(null); }}
+        onClose={() => { 
+          setShowCreateEdit(false); 
+          setEditingTask(null); 
+          setCreateSubtaskForParent(null);
+        }}
         task={editingTask}
+        parentTask={createSubtaskForParent}
         onSave={editingTask ? handleEditTask : handleCreateTask}
         projects={projects}
         allUsers={allUsers}
@@ -1430,6 +1440,7 @@ function GroupedTaskFeed({
   onEditTask,
   onViewHistory,
   onDeleteTask,
+  onAddSubtask,
 }: {
   tasks: WCTask[];
   onSelectTask: (t: any) => void;
@@ -1440,6 +1451,7 @@ function GroupedTaskFeed({
   onEditTask?: (t: WCTask) => void;
   onViewHistory?: (t: WCTask) => void;
   onDeleteTask?: (id: number) => void;
+  onAddSubtask?: (parent: WCTask) => void;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     in_progress: true,
@@ -1505,8 +1517,8 @@ function GroupedTaskFeed({
                     <div className="w-24 flex-shrink-0">Transferred Info</div>
                     <div className="w-24 flex-shrink-0">Subtasks Progress</div>
                     <div className="w-14 flex-shrink-0">Priority</div>
-                    <div className="w-24 flex-shrink-0">View Control</div>
-                    <div className="w-24 flex-shrink-0">Quick Add</div>
+                    <div className="w-24 flex-shrink-0">View Subtask</div>
+                    <div className="w-24 flex-shrink-0">Add Subtask</div>
                     <div className="w-24 flex-shrink-0">Status</div>
                     <div className="w-16 flex-shrink-0 text-right pr-2">Actions</div>
                   </div>
@@ -1656,8 +1668,7 @@ function GroupedTaskFeed({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setInlineAddSubtaskForId(inlineAddSubtaskForId === task.id ? null : task.id);
-                              setNewSubtaskTitle('');
+                              if (onAddSubtask) onAddSubtask(task);
                             }}
                             className="px-2 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
                           >
@@ -1795,8 +1806,7 @@ function GroupedTaskFeed({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setInlineAddSubtaskForId(inlineAddSubtaskForId === task.id ? null : task.id);
-                                setNewSubtaskTitle('');
+                                if (onAddSubtask) onAddSubtask(task);
                               }}
                               className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
                             >
@@ -1848,63 +1858,7 @@ function GroupedTaskFeed({
                         </div>
                       </div>
 
-                      {/* Inline Add Subtask input */}
-                      {inlineAddSubtaskForId === task.id && (
-                        <div className="px-4 pb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pl-8" onClick={e => e.stopPropagation()}>
-                          <input 
-                            type="text" 
-                            placeholder="Subtask title..." 
-                            value={newSubtaskTitle} 
-                            onChange={e => setNewSubtaskTitle(e.target.value)} 
-                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
-                          />
-                          <input 
-                            type="text" 
-                            placeholder="Description..." 
-                            value={newSubtaskDescription} 
-                            onChange={e => setNewSubtaskDescription(e.target.value)} 
-                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
-                          />
-                          {users && (
-                            <select
-                              value={newSubtaskAssigneeId}
-                              onChange={e => setNewSubtaskAssigneeId(e.target.value)}
-                              className="bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-secondary outline-none focus:border-accent-blue cursor-pointer font-bold"
-                            >
-                              <option value="">Assign To...</option>
-                              {users.map(u => (
-                                <option key={u.id} value={String(u.id)}>{u.name}</option>
-                              ))}
-                            </select>
-                          )}
-                          <button 
-                            onClick={async () => {
-                              if (!newSubtaskTitle.trim()) return;
-                              try {
-                                await workcenterService.createTask({
-                                  title: newSubtaskTitle,
-                                  parent_id: task.id,
-                                  project_id: task.project_id || undefined,
-                                  quarter_id: task.quarter_id || undefined,
-                                  priority: 'medium',
-                                  assigned_to_id: newSubtaskAssigneeId ? Number(newSubtaskAssigneeId) : undefined,
-                                  description: newSubtaskDescription || undefined,
-                                });
-                                setNewSubtaskTitle('');
-                                setNewSubtaskDescription('');
-                                setNewSubtaskAssigneeId('');
-                                setInlineAddSubtaskForId(null);
-                                if (onRefresh) onRefresh();
-                              } catch (err) {
-                                console.error(err);
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs font-bold hover:bg-accent-blue-hover transition-colors"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      )}
+
 
                       {/* Expandable subtasks list */}
                       {hasSubtasks && isTaskExpanded && (
@@ -1913,14 +1867,15 @@ function GroupedTaskFeed({
                           
                           {/* Subtasks Headers Row (hidden on mobile) */}
                           <div className="hidden lg:flex items-center p-2 bg-background-secondary/30 rounded-lg border border-border-subtle/20 text-[9px] font-bold text-text-muted uppercase tracking-wider select-none gap-4 min-w-[990px]">
-                            <div className="flex-1 min-w-[120px] pr-4 pl-6">Subtask Title</div>
-                            <div className="w-44 flex-shrink-0">Description</div>
-                            <div className="w-24 flex-shrink-0">Start Date</div>
-                            <div className="w-24 flex-shrink-0">End Date</div>
-                            <div className="w-24 flex-shrink-0">Overdue Days</div>
-                            <div className="w-28 flex-shrink-0">Assignee</div>
-                            <div className="w-36 flex-shrink-0">Transferred Info</div>
-                            <div className="w-28 flex-shrink-0">Status</div>
+                            <div className="flex-1 min-w-[120px] pr-4 pl-[30px]">Subtask Title</div>
+                            <div className="w-32 flex-shrink-0">Description</div>
+                            <div className="w-20 flex-shrink-0">Start Date</div>
+                            <div className="w-20 flex-shrink-0">End Date</div>
+                            <div className="w-20 flex-shrink-0">Overdue Days</div>
+                            <div className="w-20 flex-shrink-0">Assignee</div>
+                            <div className="w-24 flex-shrink-0">Transferred Info</div>
+                            <div className="w-24 flex-shrink-0">Status</div>
+                            <div className="w-14 flex-shrink-0 text-right">Actions</div>
                           </div>
 
                           <div className="grid grid-cols-1 gap-1.5">
@@ -2014,6 +1969,28 @@ function GroupedTaskFeed({
                                           <option key={o.value} value={o.value}>{o.label}</option>
                                         ))}
                                       </select>
+                                    </div>
+
+                                    {/* 8. Actions */}
+                                    <div className="w-14 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                      {onEditTask && (
+                                        <button 
+                                          onClick={() => onEditTask(st as any)} 
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-blue transition-colors" 
+                                          title="Edit Subtask"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      {onDeleteTask && (
+                                        <button 
+                                          onClick={() => onDeleteTask(st.id)} 
+                                          className="p-1 rounded hover:bg-background-primary text-text-muted hover:text-accent-red transition-colors" 
+                                          title="Delete Subtask"
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
 
@@ -2510,6 +2487,7 @@ function CreateEditTaskDialog({
   open,
   onClose,
   task,
+  parentTask,
   onSave,
   projects,
   allUsers,
@@ -2520,6 +2498,7 @@ function CreateEditTaskDialog({
   open: boolean;
   onClose: () => void;
   task: WCTask | null;
+  parentTask?: WCTask | null;
   onSave: (payload: any) => Promise<void>;
   projects: Project[];
   allUsers: UserType[];
@@ -2552,6 +2531,7 @@ function CreateEditTaskDialog({
     deadline: '',
     start_date: '',
     estimated_hours: '',
+    parent_id: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -2571,6 +2551,23 @@ function CreateEditTaskDialog({
           deadline: task.deadline || '',
           start_date: task.start_date || '',
           estimated_hours: task.estimated_hours ? String(task.estimated_hours) : '',
+          parent_id: task.parent_id ? String(task.parent_id) : '',
+        });
+      } else if (parentTask) {
+        setSubtasks([]);
+        setForm({
+          title: '',
+          description: '',
+          priority: 'medium',
+          status: defaultStatus || 'todo',
+          assigned_to_id: '',
+          reviewer_id: '',
+          project_id: parentTask.project_id ? String(parentTask.project_id) : '',
+          quarter_id: parentTask.quarter_id ? String(parentTask.quarter_id) : String(selectedQuarterId || ''),
+          deadline: '',
+          start_date: '',
+          estimated_hours: '',
+          parent_id: String(parentTask.id),
         });
       } else {
         setSubtasks([]);
@@ -2586,10 +2583,11 @@ function CreateEditTaskDialog({
           deadline: '',
           start_date: '',
           estimated_hours: '',
+          parent_id: '',
         });
       }
     }
-  }, [open, task, selectedQuarterId, defaultStatus]);
+  }, [open, task, parentTask, selectedQuarterId, defaultStatus]);
 
   const addSubtask = () => {
     setSubtasks(prev => [
@@ -2653,6 +2651,7 @@ function CreateEditTaskDialog({
       project_id: form.project_id ? Number(form.project_id) : 0,
       quarter_id: form.quarter_id ? Number(form.quarter_id) : 0,
       estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : 0,
+      parent_id: form.parent_id ? Number(form.parent_id) : 0,
       description: form.description || '',
       start_date: form.start_date || '',
       deadline: form.deadline || '',
@@ -2669,8 +2668,8 @@ function CreateEditTaskDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className={cn("max-h-[85vh] overflow-y-auto font-sans text-left transition-all duration-300", subtasks.length > 0 ? "max-w-2xl" : "max-w-md")}>
         <DialogHeader>
-          <DialogTitle className="text-sm font-bold">{isEdit ? 'Edit Task' : 'Create New Task'}</DialogTitle>
-          <DialogDescription>{isEdit ? 'Update task details below.' : 'Fill in the details to create a new task.'}</DialogDescription>
+          <DialogTitle className="text-sm font-bold">{isEdit ? 'Edit Task' : (form.parent_id ? 'Create New Subtask' : 'Create New Task')}</DialogTitle>
+          <DialogDescription>{isEdit ? 'Update task details below.' : (form.parent_id ? 'Fill in the details to create a new subtask.' : 'Fill in the details to create a new task.')}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-3 pt-2 text-xs">
@@ -2745,7 +2744,7 @@ function CreateEditTaskDialog({
             </div>
           </div>
 
-          {!isEdit && (
+          {!isEdit && !form.parent_id && (
             <div className="space-y-3 pt-3 border-t border-border-subtle/50 mt-4 text-left">
               <div className="flex items-center justify-between">
                 <h4 className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Subtasks ({subtasks.length})</h4>
