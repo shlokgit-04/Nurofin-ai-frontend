@@ -1458,6 +1458,7 @@ function GroupedTaskFeed({
 
   const [inlineAddSubtaskForId, setInlineAddSubtaskForId] = useState<number | null>(null);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
 
   return (
@@ -1854,6 +1855,13 @@ function GroupedTaskFeed({
                             onChange={e => setNewSubtaskTitle(e.target.value)} 
                             className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
                           />
+                          <input 
+                            type="text" 
+                            placeholder="Description..." 
+                            value={newSubtaskDescription} 
+                            onChange={e => setNewSubtaskDescription(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
                           {users && (
                             <select
                               value={newSubtaskAssigneeId}
@@ -1877,8 +1885,10 @@ function GroupedTaskFeed({
                                   quarter_id: task.quarter_id || undefined,
                                   priority: 'medium',
                                   assigned_to_id: newSubtaskAssigneeId ? Number(newSubtaskAssigneeId) : undefined,
+                                  description: newSubtaskDescription || undefined,
                                 });
                                 setNewSubtaskTitle('');
+                                setNewSubtaskDescription('');
                                 setNewSubtaskAssigneeId('');
                                 setInlineAddSubtaskForId(null);
                                 if (onRefresh) onRefresh();
@@ -2170,6 +2180,7 @@ function TaskDetailDialog({
 
   const [loading, setLoading] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
   const [addingSubtask, setAddingSubtask] = useState(false);
 
@@ -2187,8 +2198,10 @@ function TaskDetailDialog({
         assigned_to_id: newSubtaskAssigneeId ? Number(newSubtaskAssigneeId) : undefined,
         start_date: todayStr(),
         deadline: task.deadline || todayStr(),
+        description: newSubtaskDescription.trim() || undefined,
       });
       setNewSubtaskTitle('');
+      setNewSubtaskDescription('');
       setNewSubtaskAssigneeId('');
       if (onRefreshTask) onRefreshTask(task.id);
     } catch (err) {
@@ -2358,6 +2371,13 @@ function TaskDetailDialog({
                     onChange={e => setNewSubtaskTitle(e.target.value)}
                     className="h-8 text-xs flex-1"
                     required
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Description..."
+                    value={newSubtaskDescription}
+                    onChange={e => setNewSubtaskDescription(e.target.value)}
+                    className="h-8 text-xs flex-1"
                   />
                   <select
                     value={newSubtaskAssigneeId}

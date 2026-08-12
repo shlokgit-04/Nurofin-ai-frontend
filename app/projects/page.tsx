@@ -83,6 +83,7 @@ export default function ProjectsPage() {
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<number>>(new Set());
   const [addSubtaskForId, setAddSubtaskForId] = useState<number | null>(null);
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [subtaskDescription, setSubtaskDescription] = useState('');
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState('');
   // Inline edit state
   const [editingWCTask, setEditingWCTask] = useState<WCTask | null>(null);
@@ -293,8 +294,10 @@ export default function ProjectsPage() {
         parent_id: parentId,
         project_id: parseInt(selectedProjectId),
         assigned_to_id: subtaskAssigneeId ? parseInt(subtaskAssigneeId) : undefined,
+        description: subtaskDescription || undefined,
       });
       setSubtaskTitle('');
+      setSubtaskDescription('');
       setSubtaskAssigneeId('');
       setAddSubtaskForId(null);
       await loadProjectTasks(selectedProjectId);
@@ -970,6 +973,8 @@ export default function ProjectsPage() {
                         setAddSubtaskForId={setAddSubtaskForId}
                         subtaskTitle={subtaskTitle}
                         setSubtaskTitle={setSubtaskTitle}
+                        subtaskDescription={subtaskDescription}
+                        setSubtaskDescription={setSubtaskDescription}
                         subtaskAssigneeId={subtaskAssigneeId}
                         setSubtaskAssigneeId={setSubtaskAssigneeId}
                         handleAddSubtaskSubmit={handleAddSubtask}
@@ -1704,6 +1709,8 @@ function GroupedTaskFeed({
   setAddSubtaskForId,
   subtaskTitle,
   setSubtaskTitle,
+  subtaskDescription,
+  setSubtaskDescription,
   subtaskAssigneeId,
   setSubtaskAssigneeId,
   handleAddSubtaskSubmit,
@@ -1722,6 +1729,8 @@ function GroupedTaskFeed({
   setAddSubtaskForId?: (id: number | null) => void;
   subtaskTitle?: string;
   setSubtaskTitle?: (title: string) => void;
+  subtaskDescription?: string;
+  setSubtaskDescription?: (desc: string) => void;
   subtaskAssigneeId?: string;
   setSubtaskAssigneeId?: (id: string) => void;
   handleAddSubtaskSubmit?: (parentId: number) => void;
@@ -2112,6 +2121,13 @@ function GroupedTaskFeed({
                             placeholder="Subtask title..." 
                             value={subtaskTitle || ''} 
                             onChange={e => setSubtaskTitle(e.target.value)} 
+                            className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
+                          />
+                          <input 
+                            type="text" 
+                            placeholder="Description..." 
+                            value={subtaskDescription || ''} 
+                            onChange={e => setSubtaskDescription && setSubtaskDescription(e.target.value)} 
                             className="flex-1 bg-background-secondary border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent-blue" 
                           />
                           {users && setSubtaskAssigneeId && (
