@@ -1496,19 +1496,19 @@ function GroupedTaskFeed({
               <div className="divide-y divide-border-subtle/50 bg-background-primary overflow-x-auto">
                 {/* Column Headers Row */}
                 {colTasks.length > 0 && (
-                  <div className="hidden lg:flex items-center p-3.5 bg-background-secondary/40 border-b border-border-subtle text-[10px] font-extrabold text-text-muted uppercase tracking-wider select-none gap-4">
-                    <div className="flex-1 min-w-0 pr-4">Task & Project</div>
-                    <div className="w-24 flex-shrink-0">Start Date</div>
-                    <div className="w-24 flex-shrink-0">End Date</div>
+                  <div className="hidden lg:flex items-center p-3.5 bg-background-secondary/40 border-b border-border-subtle text-[10px] font-extrabold text-text-muted uppercase tracking-wider select-none gap-4 min-w-[1200px]">
+                    <div className="flex-1 min-w-[150px] pr-4">Task & Project</div>
+                    <div className="w-20 flex-shrink-0">Start Date</div>
+                    <div className="w-20 flex-shrink-0">End Date</div>
                     <div className="w-24 flex-shrink-0">Overdue Days</div>
-                    <div className="w-28 flex-shrink-0">Assignee</div>
-                    <div className="w-36 flex-shrink-0">Transferred Info</div>
-                    <div className="w-32 flex-shrink-0">Subtasks Progress</div>
-                    <div className="w-20 flex-shrink-0">Priority</div>
+                    <div className="w-24 flex-shrink-0">Assignee</div>
+                    <div className="w-32 flex-shrink-0">Transferred Info</div>
+                    <div className="w-28 flex-shrink-0">Subtasks Progress</div>
+                    <div className="w-16 flex-shrink-0">Priority</div>
                     <div className="w-28 flex-shrink-0">View Control</div>
                     <div className="w-24 flex-shrink-0">Quick Add</div>
                     <div className="w-28 flex-shrink-0">Status</div>
-                    <div className="w-24 flex-shrink-0 text-right pr-2">Actions</div>
+                    <div className="w-20 flex-shrink-0 text-right pr-2">Actions</div>
                   </div>
                 )}
                 {colTasks.map((task, idx) => {
@@ -1527,9 +1527,9 @@ function GroupedTaskFeed({
                     >
                       {/* Main Task Metadata Row */}
                       {/* Desktop Aligned Row */}
-                      <div className="hidden lg:flex items-center w-full gap-4">
+                      <div className="hidden lg:flex items-center w-full gap-4 min-w-[1200px]">
                         {/* 1. Title & Project */}
-                        <div className="flex-1 min-w-0 pr-4">
+                        <div className="flex-1 min-w-[150px] pr-4">
                           <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
                             {idx + 1}. {task.title}
                           </h4>
@@ -1550,12 +1550,12 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 2. Start Date */}
-                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                        <div className="w-20 flex-shrink-0 text-[10px] font-bold text-text-secondary">
                           {task.start_date ? task.start_date : '—'}
                         </div>
 
                         {/* 3. End Date */}
-                        <div className="w-24 flex-shrink-0 text-[10px] font-bold text-text-secondary">
+                        <div className="w-20 flex-shrink-0 text-[10px] font-bold text-text-secondary">
                           {task.deadline ? task.deadline : '—'}
                         </div>
 
@@ -1578,7 +1578,7 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 5. Assignee */}
-                        <div className="w-28 flex-shrink-0">
+                        <div className="w-24 flex-shrink-0">
                           {task.assigned_to_name ? (
                             <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
                               {task.assigned_to_avatar ? (
@@ -1586,7 +1586,7 @@ function GroupedTaskFeed({
                               ) : (
                                 <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
                               )}
-                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                              <span className="text-[10px] text-text-secondary max-w-[70px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
                             </div>
                           ) : (
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
@@ -1594,7 +1594,7 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 6. Transferred Info */}
-                        <div className="w-36 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
+                        <div className="w-32 flex-shrink-0 text-[10px] text-text-secondary font-bold truncate">
                           {task.transfer_date && task.transfer_to_name ? (
                             <div className="flex flex-col min-w-0" title={`Transferred to ${task.transfer_to_name} on ${task.transfer_date}`}>
                               <span className="text-accent-blue text-[9px] bg-accent-blue/5 border border-accent-blue/10 px-1.5 py-0.5 rounded-md inline-block max-w-max truncate">
@@ -1610,7 +1610,7 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 7. Subtasks Progress */}
-                        <div className="w-32 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           {totalSubtasks > 0 ? (
                             <div>
                               <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
@@ -1627,7 +1627,7 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 8. Priority */}
-                        <div className="w-20 flex-shrink-0">
+                        <div className="w-16 flex-shrink-0">
                           <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColor(task.priority))}>
                             {task.priority}
                           </span>
@@ -1679,7 +1679,7 @@ function GroupedTaskFeed({
                         </div>
 
                         {/* 12. Action Buttons */}
-                        <div className="w-24 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        <div className="w-20 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                           {onEditTask && (
                             <button 
                               onClick={() => onEditTask(task)} 
