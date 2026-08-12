@@ -1782,7 +1782,21 @@ function GroupedTaskFeed({
 
             {/* Tasks List */}
             {isGroupExpanded && (
-              <div className="divide-y divide-border-subtle/50 bg-background-primary">
+              <div className="divide-y divide-border-subtle/50 bg-background-primary overflow-x-auto">
+                {/* Column Headers Row */}
+                {colTasks.length > 0 && (
+                  <div className="hidden lg:flex items-center p-3.5 bg-background-secondary/40 border-b border-border-subtle text-[10px] font-extrabold text-text-muted uppercase tracking-wider select-none gap-4">
+                    <div className="flex-1 min-w-0 pr-4">Task & Project</div>
+                    <div className="w-40 flex-shrink-0">Subtasks Progress</div>
+                    <div className="w-20 flex-shrink-0">Priority</div>
+                    <div className="w-28 flex-shrink-0">Deadline</div>
+                    <div className="w-28 flex-shrink-0">Assignee</div>
+                    <div className="w-28 flex-shrink-0">View Control</div>
+                    <div className="w-24 flex-shrink-0">Quick Add</div>
+                    <div className="w-28 flex-shrink-0">Status</div>
+                    <div className="w-24 flex-shrink-0 text-right pr-2">Actions</div>
+                  </div>
+                )}
                 {colTasks.map((task, idx) => {
                   const today = new Date().toISOString().split('T')[0];
                   const isOverdue = task.deadline && task.deadline < today && task.status !== 'completed' && task.status !== 'done';
@@ -1798,19 +1812,19 @@ function GroupedTaskFeed({
                       className="p-3.5 hover:bg-surface-hover/30 transition-all cursor-pointer text-left space-y-3 relative group"
                     >
                       {/* Main Task Metadata Row */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
-                              {idx + 1}. {task.title}
-                            </h4>
-                          </div>
+                      {/* Desktop Aligned Row */}
+                      <div className="hidden lg:flex items-center w-full gap-4">
+                        {/* 1. Title & Project */}
+                        <div className="flex-1 min-w-0 pr-4">
+                          <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal truncate">
+                            {idx + 1}. {task.title}
+                          </h4>
                         </div>
 
-                        {/* Middle: Subtask completion and progress bar */}
-                        {totalSubtasks > 0 && (
-                          <div className="flex items-center gap-3 w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                            <div className="flex-1">
+                        {/* 2. Subtasks Progress */}
+                        <div className="w-40 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {totalSubtasks > 0 ? (
+                            <div className="pr-4">
                               <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
                                 <span>Subtasks</span>
                                 <span>{completedSubtasks}/{totalSubtasks}</span>
@@ -1819,11 +1833,132 @@ function GroupedTaskFeed({
                                 <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
                               </div>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none pl-2">—</span>
+                          )}
+                        </div>
 
-                        {/* Right side Metadata & Quick Actions */}
-                        <div className="flex items-center gap-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        {/* 3. Priority */}
+                        <div className="w-20 flex-shrink-0">
+                          <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColorLocal(task.priority))}>
+                            {task.priority}
+                          </span>
+                        </div>
+
+                        {/* 4. Deadline */}
+                        <div className="w-28 flex-shrink-0">
+                          {task.deadline ? (
+                            <span className={cn("text-[10px] font-bold flex items-center gap-1 select-none", isOverdue ? "text-accent-red" : "text-text-muted")}>
+                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                              {isOverdue ? 'Overdue' : task.deadline}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none">—</span>
+                          )}
+                        </div>
+
+                        {/* 5. Assignee */}
+                        <div className="w-28 flex-shrink-0">
+                          {task.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                              {task.assigned_to_avatar ? (
+                                <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
+                              )}
+                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
+                          )}
+                        </div>
+
+                        {/* 6. View Subtask Button */}
+                        <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {hasSubtasks ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpandTask(task.id, e);
+                              }}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
+                            >
+                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                              {isTaskExpanded ? 'Hide' : 'View sub task'}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-text-muted select-none pl-6">—</span>
+                          )}
+                        </div>
+
+                        {/* 7. Add Subtask Button */}
+                        <div className="w-24 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          {onAddSubtask && (
+                            <button
+                              onClick={() => onAddSubtask(task.id)}
+                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none w-full justify-center"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 8. Status Select */}
+                        <div className="w-28 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <select
+                            value={task.status === 'done' ? 'completed' : task.status}
+                            onChange={e => onStatusChange(task.id, e.target.value)}
+                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1.5 text-text-secondary outline-none cursor-pointer font-bold w-full"
+                          >
+                            {STATUS_OPTIONS.map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 9. Action Buttons */}
+                        <div className="w-24 flex-shrink-0 flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                          {onEditTask && (
+                            <button 
+                              onClick={() => onEditTask(task)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                              title="Edit"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onViewHistory && (
+                            <button 
+                              onClick={() => onViewHistory(task)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                              title="History"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onDeleteTask && (
+                            <button 
+                              onClick={() => onDeleteTask(task.id)} 
+                              className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                              title="Delete"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Mobile Layout: Stacked Card Style */}
+                      <div className="flex flex-col lg:hidden gap-3.5">
+                        {/* Title Block */}
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-text-primary hover:text-accent-blue transition-colors leading-normal break-words">
+                            {idx + 1}. {task.title}
+                          </h4>
+                        </div>
+
+                        {/* Middle metadata bar */}
+                        <div className="flex flex-wrap items-center gap-3.5 text-xs">
                           {/* Priority Badge */}
                           <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", getPriorityColorLocal(task.priority))}>
                             {task.priority}
@@ -1839,83 +1974,98 @@ function GroupedTaskFeed({
 
                           {/* Assignee Avatar */}
                           {task.assigned_to_name ? (
-                            <div className="flex items-center gap-1.5" title={`Assigned to ${task.assigned_to_name}`}>
+                            <div className="flex items-center gap-1.5">
                               {task.assigned_to_avatar ? (
                                 <img src={task.assigned_to_avatar} className="w-5 h-5 rounded-full object-cover border border-border-subtle flex-shrink-0" alt={task.assigned_to_name} />
                               ) : (
                                 <div className="w-5 h-5 rounded-full bg-accent-blue text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">{task.assigned_to_name.charAt(0)}</div>
                               )}
-                              <span className="text-[10px] text-text-secondary max-w-[80px] truncate">{task.assigned_to_name.split(' ')[0]}</span>
+                              <span className="text-[10px] text-text-secondary">{task.assigned_to_name}</span>
                             </div>
                           ) : (
                             <span className="text-[9px] text-text-muted font-bold select-none border border-dashed px-1.5 py-0.5 rounded">Unassigned</span>
                           )}
+                        </div>
 
-                          {/* View Subtask button */}
-                          {hasSubtasks && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpandTask(task.id, e);
-                              }}
-                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                        {/* Progress Bar (Mobile) */}
+                        {totalSubtasks > 0 && (
+                          <div className="bg-background-secondary/50 p-2.5 rounded-lg border border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between text-[9px] font-bold text-text-secondary mb-1">
+                              <span>Subtasks Progress</span>
+                              <span>{completedSubtasks}/{totalSubtasks}</span>
+                            </div>
+                            <div className="w-full bg-border-subtle rounded-full h-1 overflow-hidden">
+                              <div className="bg-accent-green h-1 rounded-full" style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions Block (Mobile) */}
+                        <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-border-subtle/30" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            {hasSubtasks && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpandTask(task.id, e);
+                                }}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                              >
+                                <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
+                                {isTaskExpanded ? 'Hide' : 'View sub task'}
+                              </button>
+                            )}
+
+                            {onAddSubtask && (
+                              <button
+                                onClick={() => onAddSubtask(task.id)}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-text-muted" /> Subtask
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <select
+                              value={task.status === 'done' ? 'completed' : task.status}
+                              onChange={e => onStatusChange(task.id, e.target.value)}
+                              className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
                             >
-                              <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform duration-200", isTaskExpanded ? "rotate-0" : "-rotate-90")} />
-                              {isTaskExpanded ? 'Hide subtask' : 'View sub task'}
-                            </button>
-                          )}
+                              {STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
 
-                          {/* Add sub task button */}
-                          {onAddSubtask && (
-                            <button
-                              onClick={() => onAddSubtask(task.id)}
-                              className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-text-secondary hover:text-text-primary transition-all flex items-center gap-1 select-none"
-                            >
-                              <Plus className="w-3.5 h-3.5 text-text-muted" /> Add Subtask
-                            </button>
-                          )}
-
-                          {/* Quick Status Dropdown */}
-                          <select
-                            value={task.status === 'done' ? 'completed' : task.status}
-                            onChange={e => onStatusChange(task.id, e.target.value)}
-                            className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
-                          >
-                            {STATUS_OPTIONS.map(o => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-1">
-                            {onEditTask && (
-                              <button 
-                                onClick={() => onEditTask(task)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
-                                title="Edit"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            {onViewHistory && (
-                              <button 
-                                onClick={() => onViewHistory(task)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
-                                title="History"
-                              >
-                                <History className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {onDeleteTask && (
-                              <button 
-                                onClick={() => onDeleteTask(task.id)} 
-                                className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
-                                title="Delete"
-                              >
-                                <Trash className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <div className="flex items-center gap-1 border-l border-border-subtle/40 pl-2">
+                              {onEditTask && (
+                                <button 
+                                  onClick={() => onEditTask(task)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-blue transition-colors" 
+                                  title="Edit"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onViewHistory && (
+                                <button 
+                                  onClick={() => onViewHistory(task)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-green transition-colors" 
+                                  title="History"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteTask && (
+                                <button 
+                                  onClick={() => onDeleteTask(task.id)} 
+                                  className="p-1.5 rounded-lg hover:bg-background-secondary text-text-muted hover:text-accent-red transition-colors" 
+                                  title="Delete"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
