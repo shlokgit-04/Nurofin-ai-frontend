@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/utils/cn';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +28,9 @@ import {
   Moon,
   ChevronUp,
   ChevronDown,
-  MessageCircle
+  MessageCircle,
+  X,
+  Calendar
 } from 'lucide-react';
 import { meetingsService } from '@/services/meetings';
 import { plannerService, PlannerUser, ScheduleEvent } from '@/services/planner';
@@ -44,12 +46,14 @@ export default function PlannerPage() {
   const [teammates, setTeammates] = useState<PlannerUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(currentUserId);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
+  const [teamScheduleEvents, setTeamScheduleEvents] = useState<ScheduleEvent[]>([]);
   const [localEvents, setLocalEvents] = useState<any[]>([]);
   const [allLocalEvents, setAllLocalEvents] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   
   const [viewTeamSchedule, setViewTeamSchedule] = useState(false);
+  const [showPrevDayPopup, setShowPrevDayPopup] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -63,8 +67,8 @@ export default function PlannerPage() {
   // Event Form State
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
-  const [newEventStartTime, setNewEventStartTime] = useState('10:00');
-  const [newEventEndTime, setNewEventEndTime] = useState('11:00');
+  const [newEventStartTime, setNewEventStartTime] = useState('');
+  const [newEventEndTime, setNewEventEndTime] = useState('');
   const [showParticipants, setShowParticipants] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [taskDetailsOpen, setTaskDetailsOpen] = useState(false);
@@ -84,10 +88,13 @@ export default function PlannerPage() {
 
   // Task Schedule Form State
   const [scheduleTaskOpen, setScheduleTaskOpen] = useState(false);
+  const [taskPushOpen, setTaskPushOpen] = useState(false);
+  const [taskPushDate, setTaskPushDate] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskScheduleDate, setTaskScheduleDate] = useState('');
   const [taskScheduleStartTime, setTaskScheduleStartTime] = useState('09:00');
   const [taskScheduleEndTime, setTaskScheduleEndTime] = useState('10:00');
+  const [scheduleTaskConflictData, setScheduleTaskConflictData] = useState<any>(null);
 
   const isOwnSchedule = selectedUserId === currentUserId;
 
@@ -116,6 +123,38 @@ export default function PlannerPage() {
     }
   };
 
+  useEffect(() => {
+    if (viewTeamSchedule && teammates.length > 0) {
+      const fetchTeamSchedules = async () => {
+        try {
+          const start = new Date(selectedDate);
+          start.setDate(start.getDate() - 30);
+          const end = new Date(selectedDate);
+          end.setDate(end.getDate() + 30);
+          const startStr = start.toISOString().split('T')[0];
+          const endStr = end.toISOString().split('T')[0];
+          
+          const promises = teammates.map(tm => plannerService.getSchedule(tm.id, startStr, endStr));
+          const results = await Promise.all(promises);
+          
+          let allGoogleEvents: ScheduleEvent[] = [];
+          results.forEach((res, index) => {
+            if (res.schedule) {
+              const userGoogleEvents = res.schedule
+                .filter((e: any) => e.source === 'google_calendar')
+                .map((e: any) => ({ ...e, owner_id: teammates[index].id }));
+              allGoogleEvents = [...allGoogleEvents, ...userGoogleEvents];
+            }
+          });
+          setTeamScheduleEvents(allGoogleEvents);
+        } catch (error) {
+          console.error('Failed to load team schedules', error);
+        }
+      };
+      fetchTeamSchedules();
+    }
+  }, [viewTeamSchedule, teammates, selectedDate]);
+
   const loadSchedule = useCallback(async () => {
     try {
       setScheduleLoading(true);
@@ -128,7 +167,7 @@ export default function PlannerPage() {
       const startStr = start.toISOString().split('T')[0];
       const endStr = end.toISOString().split('T')[0];
       const data = await plannerService.getSchedule(selectedUserId, startStr, endStr);
-      setScheduleEvents(data.schedule || []);
+      setScheduleEvents((data.schedule || []).map((e: any) => e.source === 'google_calendar' ? { ...e, owner_id: selectedUserId } : e));
 
       const localData = await meetingsService.getMeetings();
       setAllLocalEvents(localData);
@@ -164,6 +203,16 @@ export default function PlannerPage() {
     }
   }, [selectedUserId]);
 
+  const handleCompleteTask = async (e: React.MouseEvent, taskId: string | number) => {
+    e.stopPropagation();
+    try {
+      await tasksService.updateTask(taskId, { status: 'completed' });
+      await loadTasks();
+    } catch (error) {
+      console.error('Failed to complete task:', error);
+    }
+  };
+
   useEffect(() => {
     loadTeammates();
     setNewEventDate(new Date().toISOString().split('T')[0]);
@@ -182,12 +231,11 @@ export default function PlannerPage() {
   const [availabilityWarnings, setAvailabilityWarnings] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!newEventDate || !newEventStartTime || newEventParticipantIds.length === 0) {
-      setAvailabilityWarnings({});
+    if (!newEventDate || !newEventStartTime) {
+      setConflictData(null);
       return;
     }
     const checkAvailability = async () => {
-      const warnings: Record<string, string> = {};
       const computedEndTime = (() => {
         try {
           const parts = newEventStartTime.split(':');
@@ -198,7 +246,12 @@ export default function PlannerPage() {
         }
       })();
       
-      for (const id of newEventParticipantIds) {
+      const idsToCheck = Array.from(new Set([selectedUserId, ...newEventParticipantIds]));
+      let foundConflict = false;
+      let allAlternatives: any[] = [];
+      let conflictMessages: string[] = [];
+      
+      for (const id of idsToCheck) {
         try {
           const res = await fetch(`/api/v1/users/${id}/availability?date=${newEventDate}&start_time=${newEventStartTime}&end_time=${computedEndTime}`, {
             headers: {
@@ -207,25 +260,79 @@ export default function PlannerPage() {
           });
           const json = await res.json();
           if (json.data && json.data.is_busy) {
-            const user = teammates.find(t => t.id === id);
-            if (user) {
-              warnings[id] = `${user.full_name} is busy: ${json.data.reasons.join(', ')}`;
+            foundConflict = true;
+            const user = teammates.find(t => t.id === id) || { full_name: id === currentUserId ? 'You' : 'Participant' };
+            conflictMessages.push(`${user.full_name} is busy: ${json.data.reasons.join(', ')}`);
+            if (json.data.alternative_times && json.data.alternative_times.length > 0 && allAlternatives.length === 0) {
+              allAlternatives = json.data.alternative_times; // keep the first set of alternative times
             }
           }
         } catch (e) {
           console.error('Availability check failed', e);
         }
       }
-      setAvailabilityWarnings(warnings);
+      
+      if (foundConflict) {
+        setConflictData({
+          message: `Overlap detected! ${conflictMessages.join('. ')}. Can we schedule it at another time?`,
+          alternative_times: allAlternatives
+        });
+      } else {
+        setConflictData(null);
+      }
     };
     checkAvailability();
-  }, [newEventDate, newEventStartTime, newEventParticipantIds, teammates]);
+  }, [newEventDate, newEventStartTime, newEventParticipantIds, selectedUserId, teammates]);
+
+  useEffect(() => {
+    if (!taskScheduleDate || !taskScheduleStartTime) {
+      setScheduleTaskConflictData(null);
+      return;
+    }
+    const checkAvailability = async () => {
+      const computedEndTime = taskScheduleEndTime || (() => {
+        try {
+          const parts = taskScheduleStartTime.split(':');
+          const endH = (parseInt(parts[0]) + 1).toString().padStart(2, '0');
+          return `${endH}:${parts[1] || '00'}`;
+        } catch(e) {
+          return taskScheduleStartTime;
+        }
+      })();
+      
+      try {
+        const res = await fetch(`/api/v1/users/${selectedUserId}/availability?date=${taskScheduleDate}&start_time=${taskScheduleStartTime}&end_time=${computedEndTime}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+          }
+        });
+        const json = await res.json();
+        if (json.data && json.data.is_busy) {
+          setScheduleTaskConflictData({
+            message: `Overlap detected! You are busy: ${json.data.reasons.join(', ')}. Can we schedule it at another time?`,
+            alternative_times: json.data.alternative_times || []
+          });
+        } else {
+          setScheduleTaskConflictData(null);
+        }
+      } catch (e) {
+        console.error('Availability check failed', e);
+      }
+    };
+    checkAvailability();
+  }, [taskScheduleDate, taskScheduleStartTime, taskScheduleEndTime, selectedUserId]);
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEventTitle) return;
+    if (!newEventTitle || !newEventDate || !newEventStartTime || !newEventEndTime) {
+      alert("Please fill in all required fields (title, date, start time, end time).");
+      return;
+    }
+    if (conflictData) {
+      alert("Please resolve the scheduling conflict by selecting an alternative time before adding the event.");
+      return;
+    }
     try {
-      setConflictData(null);
       if (newEventType === 'task') {
         await tasksService.createTask({
           title: newEventTitle,
@@ -233,6 +340,9 @@ export default function PlannerPage() {
           status: 'in_progress',
           priority: 'medium',
           dueDate: newEventDate,
+          scheduledDate: newEventDate,
+          scheduledStartTime: newEventStartTime,
+          scheduledEndTime: newEventEndTime,
           assigneeId: selectedUserId.toString()
         } as any);
         loadTasks();
@@ -282,9 +392,35 @@ export default function PlannerPage() {
     }
   };
 
+  const handlePushTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTaskId || !taskPushDate) return;
+    try {
+      const task = tasks.find(t => t.id === selectedTaskId);
+      if (!task) return;
+      
+      await tasksService.updateTask(selectedTaskId, {
+        ...task,
+        dueDate: taskPushDate,
+        scheduledDate: taskPushDate
+      });
+      
+      setTaskPushOpen(false);
+      setSelectedTaskId(null);
+      loadTasks();
+      loadSchedule();
+    } catch (error) {
+      console.error('Failed to push task:', error);
+    }
+  };
+
   const handleScheduleTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTaskId || !taskScheduleDate || !taskScheduleStartTime || !taskScheduleEndTime) return;
+    if (scheduleTaskConflictData) {
+      alert("Please resolve the scheduling conflict by selecting an alternative time before scheduling the task.");
+      return;
+    }
     try {
       const task = tasks.find(t => t.id === selectedTaskId);
       if (!task) return;
@@ -376,8 +512,35 @@ export default function PlannerPage() {
   };
 
   const formatDateStr = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+    const d = new Date(date);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
   };
+
+  const prevSelectedDateRef = useRef(selectedDate.getTime());
+  const hasInitializedPopup = useRef(false);
+
+  useEffect(() => {
+    if (activeTab !== 'day' || tasks.length === 0) return;
+    
+    if (!hasInitializedPopup.current || prevSelectedDateRef.current !== selectedDate.getTime()) {
+      hasInitializedPopup.current = true;
+      prevSelectedDateRef.current = selectedDate.getTime();
+      
+      const selectedDateStr = formatDateStr(selectedDate);
+      const hasOverdue = tasks.some(t => {
+        if (t.status === 'completed') return false;
+        const taskDateStr = t.scheduledDate || (t.dueDate ? t.dueDate.split('T')[0] : null);
+        return taskDateStr && taskDateStr < selectedDateStr;
+      });
+      
+      if (hasOverdue) {
+        setShowPrevDayPopup(true);
+      } else {
+        setShowPrevDayPopup(false);
+      }
+    }
+  }, [tasks, selectedDate, activeTab]);
 
   const getEventBadge = (source: string, type: string) => {
     if (source === 'google_calendar') return 'text-[#4285F4] bg-[#4285F4]/10 border-[#4285F4]/20';
@@ -428,17 +591,29 @@ export default function PlannerPage() {
   const getEventsForDate = (dateStr: string) => {
     let local = localEvents.filter(e => e.date === dateStr);
     let currentTasks = tasks;
+    let currentGoogleSource = scheduleEvents;
     
-    if (viewTeamSchedule && isAdmin) {
+    if (viewTeamSchedule) {
       local = allLocalEvents.filter(e => e.date === dateStr);
       currentTasks = allTasks;
+      currentGoogleSource = teamScheduleEvents.length > 0 ? teamScheduleEvents : scheduleEvents;
     }
 
-    const google = scheduleEvents.filter(e => {
+    const googleRaw = currentGoogleSource.filter(e => {
       if (e.source === 'google_calendar' && e.start) {
         return e.start.startsWith(dateStr);
       }
       return false;
+    });
+
+    const uniqueGoogle = [];
+    const googleKeys = new Set();
+    googleRaw.forEach(e => {
+      const key = e.id || `${e.title}-${e.start}`;
+      if (!googleKeys.has(key)) {
+        googleKeys.add(key);
+        uniqueGoogle.push(e);
+      }
     });
     
     const scheduledTasks = currentTasks
@@ -457,7 +632,20 @@ export default function PlannerPage() {
         status: t.status
       }));
 
-    return [...local.map(e => ({ ...e, source: 'nurofin' })), ...google, ...scheduledTasks].sort((a, b) => {
+    const localMapped = local.map(e => ({ ...e, source: 'nurofin' }));
+    const finalLocal: any[] = [];
+    localMapped.forEach(e => {
+       if (e.type === 'google_event' || e.type === 'GOOGLE_EVENT') {
+          const exists = uniqueGoogle.some(g => g.title?.toLowerCase().trim() === e.title?.toLowerCase().trim());
+          if (!exists) {
+             finalLocal.push(e);
+          }
+       } else {
+          finalLocal.push(e);
+       }
+    });
+
+    return [...finalLocal, ...uniqueGoogle, ...scheduledTasks].sort((a, b) => {
       const timeA = a.start_time || (a.start ? a.start.split('T')[1] : '00:00');
       const timeB = b.start_time || (b.start ? b.start.split('T')[1] : '00:00');
       return String(timeA).localeCompare(String(timeB));
@@ -922,9 +1110,32 @@ export default function PlannerPage() {
                   </div>
                 )}
                 {activeTab === 'day' && (
-                  <span className="text-sm font-extrabold text-text-primary bg-background-secondary px-4 py-1.5 rounded-lg border border-border-subtle shadow-sm tracking-wide">
-                    {new Date(todayStr).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </span>
+                  <div className="flex items-center gap-2 bg-background-secondary px-2 py-1 rounded-lg border border-border-subtle shadow-sm">
+                    <button 
+                      onClick={() => {
+                        const newDate = new Date(selectedDate);
+                        newDate.setDate(newDate.getDate() - 1);
+                        setSelectedDate(newDate);
+                      }}
+                      className="p-1 hover:bg-surface-hover rounded-md transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-text-primary" />
+                    </button>
+                    <span className="text-sm font-extrabold text-text-primary tracking-wide px-2">
+                      {selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      {formatDateStr(selectedDate) === todayStr && <span className="ml-2 text-[10px] bg-accent-blue/10 text-accent-blue px-1.5 py-0.5 rounded uppercase">Today</span>}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        const newDate = new Date(selectedDate);
+                        newDate.setDate(newDate.getDate() + 1);
+                        setSelectedDate(newDate);
+                      }}
+                      className="p-1 hover:bg-surface-hover rounded-md transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4 text-text-primary" />
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -936,7 +1147,6 @@ export default function PlannerPage() {
                   <span className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4 text-accent-blue" /> Daily Timeline
                   </span>
-                  {isAdmin && (
                     <button 
                       onClick={() => setViewTeamSchedule(!viewTeamSchedule)}
                       className={`text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-md shadow-sm border transition-all ${
@@ -947,7 +1157,6 @@ export default function PlannerPage() {
                     >
                       {viewTeamSchedule ? 'Viewing Team Schedule' : 'View Team Schedule'}
                     </button>
-                  )}
                 </h3>
 
                 {scheduleLoading ? (
@@ -956,7 +1165,8 @@ export default function PlannerPage() {
                     <p className="text-sm font-medium animate-pulse">Loading schedule...</p>
                   </div>
                 ) : (() => {
-                  const todaysEvents = getEventsForDate(todayStr);
+                  const currentDayStr = formatDateStr(selectedDate);
+                  const todaysEvents = getEventsForDate(currentDayStr);
 
                   const formatAmPm = (hourNum: number) => {
                     const ampm = hourNum >= 12 ? 'PM' : 'AM';
@@ -1005,14 +1215,22 @@ export default function PlannerPage() {
                     return (
                       <div 
                         key={idx} 
-                        className={`${bgColor} ${textColor} backdrop-blur ${isCompact ? 'p-1.5' : 'p-4'} rounded-xl border ${borderColor} hover:shadow-md 
-transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} justify-between ${isCompact ? 'gap-0.5' : 'gap-4'} group ${isTask ? 'cursor-pointer' : 
-''}`}
+                        className={`${bgColor} ${textColor} backdrop-blur ${isCompact ? 'p-1.5' : 'p-4'} rounded-xl border ${borderColor} hover:shadow-md transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} justify-between ${isCompact ? 'gap-0.5' : 'gap-4'} group ${isTask || evt.source === 'google_calendar' || evt.source === 'nurofin' ? 'cursor-pointer' : ''}`}
                         onClick={() => {
                           if (isTask) {
-                            setSelectedTaskId(evt.id);
-                            setTaskScheduleDate(evt.date || new Date().toISOString().split('T')[0]);
-                            setScheduleTaskOpen(true);
+                            const fullTask = allTasks.find(t => String(t.id) === String(evt.id));
+                            if (fullTask) {
+                                setSelectedTaskDetails(fullTask);
+                                setTaskDetailsOpen(true);
+                            }
+                          } else if (evt.source === 'google_calendar') {
+                            const meetLink = evt.hangout_link || evt.hangoutLink;
+                            const eventLink = evt.event_link || evt.htmlLink || evt.url;
+                            if (meetLink) window.open(meetLink, '_blank');
+                            else if (eventLink) window.open(eventLink, '_blank');
+                            else window.location.href = '/meetings';
+                          } else if (evt.source === 'nurofin') {
+                            window.location.href = '/meetings';
                           }
                         }}
                       >
@@ -1042,6 +1260,30 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                             <span className="text-[10px] font-bold text-text-muted bg-background-secondary/50 px-2 py-1 rounded-md uppercase tracking-wider">
                               {evt.source === 'google_calendar' ? 'Event' : evt.type}
                             </span>
+                            {evt.source === 'nurofin_task' && isOwnSchedule && evt.id && evt.status !== 'completed' && (
+                              <button 
+                                onClick={(e) => handleCompleteTask(e, evt.id)}
+                                className="p-1.5 hover:bg-accent-green/10 text-text-muted hover:text-accent-green rounded-md transition-colors"
+                                title="Mark as Complete"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {evt.source === 'nurofin_task' && isOwnSchedule && evt.id && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTaskId(evt.id);
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  setTaskPushDate(tomorrow.toISOString().split('T')[0]);
+                                  setTaskPushOpen(true);
+                                }}
+                                className="text-[9px] font-bold text-accent-orange bg-accent-orange/10 hover:bg-accent-orange/20 px-2 py-1 rounded transition-colors opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0"
+                              >
+                                Push
+                              </button>
+                            )}
                             {evt.source === 'nurofin' && isOwnSchedule && evt.id && (
                               <button onClick={() => handleDeleteEvent(evt.id)} className="text-text-muted hover:text-accent-orange transition-colors bg-surface-hover p-1.5 rounded-md opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0">
                                 <Trash2 className="w-4 h-4" />
@@ -1053,7 +1295,7 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                     );
                   };
 
-                  if (viewTeamSchedule && isAdmin) {
+                  if (viewTeamSchedule) {
                     return (
                       <div className="w-full max-h-[75vh] overflow-y-auto pb-4 relative border border-border-subtle rounded-xl">
                         <div className="w-full flex flex-col min-w-[800px]">
@@ -1198,23 +1440,77 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.05 }}
                             key={idx} 
-                            className="bg-background-primary group p-2.5 rounded-lg border border-border-subtle/80 text-left space-y-1.5 relative hover:border-accent-blue/50 hover:shadow-md transition-all cursor-default"
+                            className={`bg-background-primary group p-2.5 rounded-lg border border-border-subtle/80 text-left relative hover:border-accent-blue/50 hover:shadow-md transition-all cursor-pointer ${e.source === 'nurofin_task' ? 'space-y-2.5' : 'space-y-1.5'}`}
+                            onClick={() => {
+                              if (e.source === 'nurofin_task') {
+                                const fullTask = allTasks.find(t => String(t.id) === String(e.id));
+                                if (fullTask) {
+                                  setSelectedTaskDetails(fullTask);
+                                  setTaskDetailsOpen(true);
+                                }
+                              } else if (e.source === 'google_calendar') {
+                                const meetLink = e.hangout_link || e.hangoutLink;
+                                const eventLink = e.event_link || e.htmlLink || e.url;
+                                if (meetLink) window.open(meetLink, '_blank');
+                                else if (eventLink) window.open(eventLink, '_blank');
+                                else window.location.href = '/meetings';
+                              } else if (e.source === 'nurofin') {
+                                window.location.href = '/meetings';
+                              }
+                            }}
                           >
-                            <h4 className="text-xs font-bold text-text-primary pr-4 leading-tight">{e.title}</h4>
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className={cn("flex items-center gap-1 font-medium",
-                                e.source === 'google_calendar' ? 'text-[#4285F4]' : 'text-text-secondary'
-                              )}>
-                                {e.source === 'google_calendar' ? (
-                                  <><Globe className="w-3 h-3" /> {e.start ? new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
-                                ) : (
-                                  <><Clock className="w-3 h-3" /> {e.start_time || ''}</>
-                                )}
-                              </span>
-                              <span className={cn("text-[9px] uppercase font-bold border px-1.5 py-0.5 rounded shadow-sm", getEventBadge(e.source, e.type))}>
-                                {e.source === 'google_calendar' ? 'Google' : e.source === 'nurofin_task' ? 'Task' : e.type}
-                              </span>
-                            </div>
+                            {e.source === 'nurofin_task' ? (
+                              <>
+                                <h4 className="text-[10px] font-bold text-text-primary line-clamp-2 leading-tight">{e.title}</h4>
+                                <div className="flex items-center justify-between mt-1.5 text-[9px]">
+                                  <span className="text-text-muted flex items-center gap-0.5">
+                                    <Clock className="w-2.5 h-2.5" /> {e.start_time || ''}
+                                  </span>
+                                  {isOwnSchedule && e.id && (
+                                    <select
+                                      value={e.status}
+                                      onChange={async (ev) => {
+                                        ev.stopPropagation();
+                                        const nextStatus = ev.target.value;
+                                        try {
+                                          await tasksService.updateTask(e.id, { status: nextStatus });
+                                          loadTasks();
+                                        } catch (err) {
+                                          console.error(err);
+                                        }
+                                      }}
+                                      onClick={ev => ev.stopPropagation()}
+                                      className="bg-transparent text-text-secondary outline-none cursor-pointer p-0 hover:text-accent-blue max-w-[60px] truncate"
+                                    >
+                                      <option value="todo">To Do</option>
+                                      <option value="in_progress">In Prog</option>
+                                      <option value="review">Review</option>
+                                      <option value="completed">Done</option>
+                                      <option value="blocked">Block</option>
+                                      <option value="done">Done</option>
+                                    </select>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <h4 className="text-xs font-bold text-text-primary pr-4 leading-tight">{e.title}</h4>
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className={cn("flex items-center gap-1 font-medium",
+                                    e.source === 'google_calendar' ? 'text-[#4285F4]' : 'text-text-secondary'
+                                  )}>
+                                    {e.source === 'google_calendar' ? (
+                                      <><Globe className="w-3 h-3" /> {e.start ? new Date(e.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</>
+                                    ) : (
+                                      <><Clock className="w-3 h-3" /> {e.start_time || ''}</>
+                                    )}
+                                  </span>
+                                  <span className={cn("text-[9px] uppercase font-bold border px-1.5 py-0.5 rounded shadow-sm", getEventBadge(e.source, e.type))}>
+                                    {e.source === 'google_calendar' ? 'Google' : e.type}
+                                  </span>
+                                </div>
+                              </>
+                            )}
                             {e.source === 'nurofin' && isOwnSchedule && e.id && (
                               <button
                                 onClick={() => handleDeleteEvent(e.id)}
@@ -1330,44 +1626,82 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                           variants={itemVariants}
                           whileHover={{ y: -4 }}
                           onClick={() => { setSelectedTaskDetails(task); setTaskDetailsOpen(true); }}
-                          className="bg-background-primary text-left border border-border-subtle rounded-xl p-5 shadow-sm hover:border-accent-purple/50 transition-all group flex flex-col h-full w-full"
+                          className="bg-background-primary p-3 rounded-md border border-border-subtle hover:border-text-muted transition-colors cursor-pointer text-left space-y-3 relative group flex flex-col h-full w-full"
                         >
-                          <div className="flex justify-between items-start mb-3 w-full">
-                            <span className={cn(
-                              "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
-                              task.status === 'in_progress' ? "bg-accent-blue/10 text-accent-blue border-accent-blue/20" : 
-                              "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs font-bold text-text-primary line-clamp-2 leading-relaxed">{task.title}</h4>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-text-muted bg-background-secondary border border-border-subtle px-2 py-0.5 rounded w-fit">
+                            <span className="w-1.5 h-1.5 rounded-full bg-text-muted" />
+                            General Tasks
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-3.5 text-xs pt-1 border-t border-border-subtle/50">
+                            <span className={cn("px-2 py-0.5 rounded border text-[8px] font-extrabold uppercase select-none tracking-wider", 
+                              task.priority?.toLowerCase() === 'high' ? 'bg-accent-red/10 text-accent-red border-accent-red/20' : 
+                              task.priority?.toLowerCase() === 'medium' ? 'bg-accent-orange/10 text-accent-orange border-accent-orange/20' : 
+                              task.priority?.toLowerCase() === 'low' ? 'bg-accent-blue/10 text-accent-blue border-accent-blue/20' : 
+                              'bg-text-secondary/10 text-text-secondary border-text-secondary/20'
                             )}>
-                              {task.status.replace('_', ' ')}
+                              {task.priority || 'Medium'}
                             </span>
-                            <span className={cn(
-                              "text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-md shadow-sm border",
-                              task.priority === 'high' ? "bg-accent-red/10 text-accent-red border-accent-red/20" : 
-                              task.priority === 'medium' ? "bg-accent-orange/10 text-accent-orange border-accent-orange/20" : 
-                              "bg-text-secondary/10 text-text-secondary border-text-secondary/20"
-                            )}>
-                              {task.priority} Priority
+                            <span className="text-text-muted text-[10px] font-bold flex items-center gap-1 select-none">
+                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" /> {task.dueDate}
                             </span>
                           </div>
-                          <h4 className="font-bold text-base text-text-primary mb-2 line-clamp-2 w-full">{task.title}</h4>
-                          <p className="text-xs text-text-secondary line-clamp-3 mb-4 flex-1 w-full">{task.description}</p>
-                          
-                          <div className="flex items-center justify-between border-t border-border-subtle pt-4 mt-auto w-full">
+                          <div 
+                            className="flex items-center justify-between gap-2.5 pt-2 border-t border-border-subtle/30 mt-auto w-full"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex items-center gap-2">
-                              <Clock className="w-3.5 h-3.5 text-text-muted" />
-                              <span className="text-[11px] font-bold text-text-secondary">Due {new Date(task.dueDate).toLocaleDateString()}</span>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTaskId(task.id);
+                                  setTaskScheduleDate(new Date().toISOString().split('T')[0]);
+                                  setScheduleTaskOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-accent-purple hover:text-accent-purple/80 transition-all flex items-center gap-1 select-none"
+                                title="Schedule task"
+                              >
+                                {task.scheduledDate ? 'Reschedule' : 'Schedule'}
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTaskId(task.id);
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  setTaskPushDate(tomorrow.toISOString().split('T')[0]);
+                                  setTaskPushOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-background-secondary hover:bg-surface-hover border border-border-subtle/50 text-[9px] font-bold rounded text-accent-orange hover:text-accent-orange/80 transition-all flex items-center gap-1 select-none"
+                                title="Push to tomorrow"
+                              >
+                                Push
+                              </button>
                             </div>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTaskId(task.id);
-                                setTaskScheduleDate(new Date().toISOString().split('T')[0]);
-                                setScheduleTaskOpen(true);
+                            <select
+                              value={task.status}
+                              onChange={async (e) => {
+                                const nextStatus = e.target.value;
+                                try {
+                                  await tasksService.updateTask(task.id, { status: nextStatus });
+                                  loadTasks();
+                                } catch (err) {
+                                  console.error(err);
+                                }
                               }}
-                              className="text-[10px] font-bold text-accent-purple bg-accent-purple/10 hover:bg-accent-purple/20 px-2 py-1 rounded transition-colors z-10 relative"
+                              className="bg-background-secondary border border-border-subtle text-[10px] rounded p-1 text-text-secondary outline-none cursor-pointer font-bold"
                             >
-                              {task.scheduledDate ? 'Reschedule' : 'Schedule Time'}
-                            </button>
+                              <option value="todo">To Do</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="review">Review</option>
+                              <option value="completed">Completed</option>
+                              <option value="blocked">Blocked</option>
+                              <option value="done">Done</option>
+                            </select>
                           </div>
                         </motion.button>
                       ))}
@@ -1418,8 +1752,157 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
         </div>
       </div>
     </div>
+    {/* Previous Day Overview Modal */}
+    <AnimatePresence>
+      {showPrevDayPopup && (() => {
+        const selectedDateStr = formatDateStr(selectedDate);
+        const isBeforeSelected = (taskDateStr: string | null) => {
+          if (!taskDateStr) return false;
+          return taskDateStr < selectedDateStr;
+        };
+
+        const prevPendingTasks = tasks.filter(t => {
+          const tDate = t.scheduledDate || (t.dueDate ? t.dueDate.split('T')[0] : null);
+          return t.status !== 'completed' && isBeforeSelected(tDate);
+        });
+        
+        const prevDayDate = new Date(selectedDate);
+        prevDayDate.setDate(prevDayDate.getDate() - 1);
+        const prevDayStr = formatDateStr(prevDayDate);
+
+        const prevCompletedTasks = tasks.filter(t => {
+          const tDate = t.scheduledDate || (t.dueDate ? t.dueDate.split('T')[0] : null);
+          return t.status === 'completed' && tDate === prevDayStr;
+        });
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface-card border border-border-subtle rounded-xl p-6 w-full max-w-lg shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowPrevDayPopup(false)}
+                className="absolute top-4 right-4 p-1 rounded-md hover:bg-surface-hover text-text-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-text-primary">Yesterday's Overview</h2>
+                  <p className="text-xs text-text-muted font-medium uppercase tracking-wider">{prevDayDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-accent-orange"></span>
+                    Uncompleted Tasks ({prevPendingTasks.length})
+                  </h3>
+                  {prevPendingTasks.length > 0 ? (
+                    <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-2">
+                      {prevPendingTasks.map(t => (
+                        <div key={t.id} className="text-xs font-medium bg-background-primary px-3 py-2 rounded-lg border border-border-subtle shadow-sm truncate">
+                          {t.title}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted italic bg-background-secondary p-3 rounded-lg border border-dashed border-border-subtle">
+                      No pending tasks! Great job yesterday.
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-accent-green"></span>
+                    Completed Tasks ({prevCompletedTasks.length})
+                  </h3>
+                  {prevCompletedTasks.length > 0 ? (
+                    <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-2">
+                      {prevCompletedTasks.map(t => (
+                        <div key={t.id} className="text-xs font-medium bg-background-primary px-3 py-2 rounded-lg border border-border-subtle shadow-sm truncate line-through opacity-70">
+                          {t.title}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-text-muted italic bg-background-secondary p-3 rounded-lg border border-dashed border-border-subtle">
+                      No tasks completed yesterday.
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="mt-8 flex justify-end">
+                <button 
+                  onClick={() => setShowPrevDayPopup(false)}
+                  className="px-6 py-2 bg-accent-blue text-white text-sm font-bold rounded-lg hover:bg-accent-blue-hover transition-colors shadow-md"
+                >
+                  Got it, let's plan
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+    </AnimatePresence>
+
     {/* Schedule Task Modal */}
     <AnimatePresence>
+        {taskPushOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-card border border-border-subtle rounded-xl p-6 shadow-xl w-full max-w-sm flex flex-col gap-4"
+            >
+              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-accent-orange" /> Push Task
+              </h3>
+              <form onSubmit={handlePushTask} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Select New Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={taskPushDate}
+                    onChange={e => setTaskPushDate(e.target.value)}
+                    className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-orange transition-all"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end mt-2 pt-4 border-t border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskPushOpen(false);
+                      setSelectedTaskId(null);
+                    }}
+                    className="px-4 h-10 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg font-bold transition-all text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 h-10 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg shadow-md transition-all text-xs"
+                  >
+                    Push Task
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
         {scheduleTaskOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div
@@ -1432,6 +1915,35 @@ transition-all flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} j
                 <CalendarDays className="w-5 h-5 text-accent-purple" /> Schedule Task
               </h3>
               <form onSubmit={handleScheduleTask} className="space-y-4">
+                {scheduleTaskConflictData && (
+                  <div className="bg-accent-orange/10 border border-accent-orange/30 p-3 rounded-md text-xs">
+                    <div className="flex items-start gap-2 text-accent-orange font-medium">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <p>{scheduleTaskConflictData.message}</p>
+                    </div>
+                    {scheduleTaskConflictData.alternative_times && scheduleTaskConflictData.alternative_times.length > 0 && (
+                      <div className="mt-2.5 space-y-1.5 pl-6">
+                        <p className="text-[10px] font-bold text-text-secondary uppercase">Suggested Alternatives:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {scheduleTaskConflictData.alternative_times.map((alt: any, idx: number) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setTaskScheduleDate(alt.date);
+                                setTaskScheduleStartTime(alt.start_time);
+                                setTaskScheduleEndTime(alt.end_time);
+                              }}
+                              className="text-[10px] bg-background-secondary border border-border-subtle hover:border-accent-purple hover:text-accent-purple px-2 py-1 rounded transition-colors"
+                            >
+                              {new Date(alt.date + 'T' + alt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Date</label>
                   <input
