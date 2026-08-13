@@ -606,9 +606,9 @@ export default function PlannerPage() {
       return false;
     });
 
-    const uniqueGoogle = [];
+    const uniqueGoogle: any[] = [];
     const googleKeys = new Set();
-    googleRaw.forEach(e => {
+    googleRaw.forEach((e: any) => {
       const key = e.id || `${e.title}-${e.start}`;
       if (!googleKeys.has(key)) {
         googleKeys.add(key);
@@ -1473,7 +1473,7 @@ export default function PlannerPage() {
                                         ev.stopPropagation();
                                         const nextStatus = ev.target.value;
                                         try {
-                                          await tasksService.updateTask(e.id, { status: nextStatus });
+                                          await tasksService.updateTask(e.id, { status: nextStatus as any });
                                           loadTasks();
                                         } catch (err) {
                                           console.error(err);
@@ -1687,7 +1687,7 @@ export default function PlannerPage() {
                               onChange={async (e) => {
                                 const nextStatus = e.target.value;
                                 try {
-                                  await tasksService.updateTask(task.id, { status: nextStatus });
+                                  await tasksService.updateTask(task.id, { status: nextStatus as any });
                                   loadTasks();
                                 } catch (err) {
                                   console.error(err);
@@ -1795,7 +1795,7 @@ export default function PlannerPage() {
                   <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-text-primary">Yesterday's Overview</h2>
+                  <h2 className="text-lg font-black text-text-primary">Yesterday&apos;s Overview</h2>
                   <p className="text-xs text-text-muted font-medium uppercase tracking-wider">{prevDayDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                 </div>
               </div>
@@ -1847,7 +1847,7 @@ export default function PlannerPage() {
                   onClick={() => setShowPrevDayPopup(false)}
                   className="px-6 py-2 bg-accent-blue text-white text-sm font-bold rounded-lg hover:bg-accent-blue-hover transition-colors shadow-md"
                 >
-                  Got it, let's plan
+                  Got it, let&apos;s plan
                 </button>
               </div>
             </motion.div>
