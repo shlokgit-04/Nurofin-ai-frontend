@@ -167,6 +167,8 @@ export const meetingsService = {
       is_recurring: meeting.is_recurring,
       recurrence_rule: meeting.recurrence_rule,
       participant_ids: meeting.participant_ids || [],
+      project_id: meeting.project_id,
+      task_id: meeting.task_id,
     };
     const res = await fetch('/api/v1/meetings', {
       method: 'POST',

@@ -35,6 +35,7 @@ import {
 import { meetingsService } from '@/services/meetings';
 import { plannerService, PlannerUser, ScheduleEvent } from '@/services/planner';
 import { tasksService } from '@/services/tasks';
+import { projectsService } from '@/services/projects';
 import { useStore } from '@/store';
 import { Task } from '@/types';
 
@@ -51,6 +52,7 @@ export default function PlannerPage() {
   const [allLocalEvents, setAllLocalEvents] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   
   const [viewTeamSchedule, setViewTeamSchedule] = useState(false);
   const [showPrevDayPopup, setShowPrevDayPopup] = useState(false);
@@ -78,6 +80,8 @@ export default function PlannerPage() {
   const [conflictData, setConflictData] = useState<{message: string, alternative_times: any[]} | null>(null);
   const [newEventParticipantIds, setNewEventParticipantIds] = useState<number[]>([]);
   const [newEventParticipants, setNewEventParticipants] = useState<number[]>([]);
+  const [newEventProjectId, setNewEventProjectId] = useState<string>('none');
+  const [newEventTaskId, setNewEventTaskId] = useState<string>('none');
   
   // Task Form State
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -120,6 +124,15 @@ export default function PlannerPage() {
       setTeammates(data);
     } catch (error) {
       console.error('Failed to load teammates:', error);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const data = await projectsService.getProjects();
+      setProjects(data);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
     }
   };
 
@@ -215,6 +228,7 @@ export default function PlannerPage() {
 
   useEffect(() => {
     loadTeammates();
+    loadProjects();
     setNewEventDate(new Date().toISOString().split('T')[0]);
     setNewTaskDueDate(new Date().toISOString().split('T')[0]);
   }, []);
@@ -353,8 +367,18 @@ export default function PlannerPage() {
           time: newEventStartTime,
           end_time: newEventEndTime,
           type: newEventType,
-          participants: newEventParticipants.map(String) as any
+          participants: newEventParticipants.map(String) as any,
+          project_id: newEventProjectId !== 'none' ? newEventProjectId : undefined,
+          task_id: newEventTaskId !== 'none' ? newEventTaskId : undefined
         });
+        if (newEventTaskId !== 'none') {
+          await tasksService.updateTask(newEventTaskId, {
+            scheduledDate: newEventDate,
+            scheduledStartTime: newEventStartTime,
+            scheduledEndTime: newEventEndTime,
+          });
+          loadTasks();
+        }
         setLocalEvents([...localEvents, newEvent]);
       }
       setNewEventTitle('');
@@ -951,6 +975,35 @@ export default function PlannerPage() {
                   <option value="task">Task</option>
                 </select>
               </div>
+              <div className="space-y-1.5 sm:col-span-3">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Project</label>
+                <select
+                  value={newEventProjectId}
+                  onChange={e => {
+                    setNewEventProjectId(e.target.value);
+                    setNewEventTaskId('none');
+                  }}
+                  className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                >
+                  <option value="none">None</option>
+                  {projects.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-3">
+                <label className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Related Task</label>
+                <select
+                  value={newEventTaskId}
+                  onChange={e => setNewEventTaskId(e.target.value)}
+                  className="w-full h-10 bg-background-primary border border-border-subtle rounded-lg px-3 text-sm text-text-primary focus:border-accent-blue transition-all"
+                >
+                  <option value="none">None</option>
+                  {allTasks.filter((t: any) => newEventProjectId === 'none' || String(t.projectId) === String(newEventProjectId)).map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-1.5 sm:col-span-6">
                 <button type="button" onClick={() => setShowParticipants(!showParticipants)} className="flex items-center gap-2 text-[10px] text-text-secondary font-bold uppercase tracking-wider hover:text-text-primary transition-colors">
                   Participants (Optional)
@@ -1269,7 +1322,7 @@ export default function PlannerPage() {
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
                             )}
-                            {evt.source === 'nurofin_task' && isOwnSchedule && evt.id && (
+                            {evt.source === 'nurofin_task' && isOwnSchedule && evt.id && evt.status !== 'completed' && evt.status !== 'done' && (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1461,7 +1514,7 @@ export default function PlannerPage() {
                           >
                             {e.source === 'nurofin_task' ? (
                               <>
-                                <h4 className="text-[10px] font-bold text-text-primary line-clamp-2 leading-tight">{e.title}</h4>
+                                <h4 className="text-[10px] font-bold text-text-primary line-clamp-2 leading-tight pr-6">{e.title}</h4>
                                 <div className="flex items-center justify-between mt-1.5 text-[9px]">
                                   <span className="text-text-muted flex items-center gap-0.5">
                                     <Clock className="w-2.5 h-2.5" /> {e.start_time || ''}
@@ -1491,6 +1544,21 @@ export default function PlannerPage() {
                                     </select>
                                   )}
                                 </div>
+                                {isOwnSchedule && e.id && e.status !== 'completed' && e.status !== 'done' && (
+                                  <button 
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      setSelectedTaskId(e.id);
+                                      const tomorrow = new Date();
+                                      tomorrow.setDate(tomorrow.getDate() + 1);
+                                      setTaskPushDate(tomorrow.toISOString().split('T')[0]);
+                                      setTaskPushOpen(true);
+                                    }}
+                                    className="absolute top-1.5 right-1.5 text-[8px] font-bold text-accent-orange bg-accent-orange/10 hover:bg-accent-orange/20 px-1 py-0.5 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    Push
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <>

@@ -256,9 +256,24 @@ const DocumentHubAction = () => {
   );
 };
 
+// --- New Component for Auto-Opening Channels ---
+const ChatAutoOpener = ({ channelToSelect, onSelected }: { channelToSelect: any, onSelected: () => void }) => {
+  const { setActiveChannel } = useChatContext();
+  
+  useEffect(() => {
+    if (channelToSelect && setActiveChannel) {
+      setActiveChannel(channelToSelect);
+      onSelected();
+    }
+  }, [channelToSelect, setActiveChannel, onSelected]);
+  
+  return null;
+};
+
 // --- Main Page ---
 
 export default function TeamChatPage() {
+  const [channelToSelect, setChannelToSelect] = useState<any>(null);
   const { userProfile, theme } = useStore();
   const [clientReady, setClientReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -326,6 +341,7 @@ export default function TeamChatPage() {
           
           await channel.create();
           await channel.watch();
+          setChannelToSelect(channel);
         } catch (err) {
           console.error('Failed to auto-open task chat', err);
         }
@@ -339,6 +355,7 @@ export default function TeamChatPage() {
           
           await channel.create();
           await channel.watch();
+          setChannelToSelect(channel);
         } catch (err) {
           console.error('Failed to auto-open direct chat', err);
         }
@@ -366,6 +383,7 @@ export default function TeamChatPage() {
       
       await channel.create();
       await channel.watch();
+      setChannelToSelect(channel);
       setIsTaskChatModalOpen(false);
       setSelectedTask('');
       setSelectedParticipants([]);
@@ -386,6 +404,7 @@ export default function TeamChatPage() {
       
       await channel.create();
       await channel.watch();
+      setChannelToSelect(channel);
       setIsDirectChatModalOpen(false);
       setSelectedUser('');
     } catch (err) {
@@ -501,6 +520,7 @@ export default function TeamChatPage() {
   return (
     <div className="flex h-[calc(100vh-6rem)] bg-background-primary overflow-hidden stream-theme-wrapper relative rounded-xl border border-border-subtle shadow-sm">
       <Chat client={chatClient} theme={`str-chat__theme-${theme}`}>
+        <ChatAutoOpener channelToSelect={channelToSelect} onSelected={() => setChannelToSelect(null)} />
         <div className="w-80 border-r border-border-subtle bg-background-secondary flex-shrink-0 flex flex-col h-full">
           <div className="p-4 border-b border-border-subtle space-y-2">
             <button
