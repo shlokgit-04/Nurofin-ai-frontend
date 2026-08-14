@@ -144,6 +144,8 @@ export interface Meeting {
   created_at?: string;
   agenda?: string;
   meeting_link?: string;
+  project_id?: string | number;
+  task_id?: string | number;
   location?: string;
   timezone?: string;
   is_recurring?: boolean;
