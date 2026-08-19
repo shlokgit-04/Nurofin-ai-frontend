@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearchParams } from 'next/navigation';
 import * as z from 'zod';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
@@ -25,6 +26,7 @@ import {
   FolderKanban,
   Flag,
   RefreshCw,
+  Paperclip,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -36,9 +38,10 @@ const issueSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters long'),
   severity: z.enum(['low', 'medium', 'high', 'critical'] as const),
   category: z.string().optional(),
-  assigned_user_id: z.string().min(1, 'Assignment is required'),
+  assigned_user_id: z.string().optional(),
   project_id: z.string().optional(),
   deadline: z.string().optional(),
+  attachments: z.array(z.string()).optional(),
 });
 
 type IssueFormValues = z.infer<typeof issueSchema>;
@@ -47,7 +50,15 @@ const STATUS_OPTIONS = ['open', 'in_progress', 'resolved', 'closed'] as const;
 const SEVERITY_OPTIONS = ['low', 'medium', 'high', 'critical'] as const;
 const CATEGORY_OPTIONS = ['Bug', 'Feature Request', 'Security', 'Infrastructure', 'Database', 'UI/UX', 'Performance', 'Other'];
 
-export default function IssueCenterPage() {
+export default function IssueCenterPageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <IssueCenterPage />
+    </Suspense>
+  );
+}
+
+function IssueCenterPage() {
   const { issues, setIssues } = useStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +68,10 @@ export default function IssueCenterPage() {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState<'all' | 'mine' | 'assigned'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const searchParams = useSearchParams();
+  const urlProject = searchParams?.get('project');
+  const urlCategory = searchParams?.get('category');
 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -66,6 +81,10 @@ export default function IssueCenterPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [followupText, setFollowupText] = useState('');
   const [followupSending, setFollowupSending] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferReason, setTransferReason] = useState('');
+  const [transferUserId, setTransferUserId] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const { userProfile } = useStore();
   const currentUserId = userProfile.id ? String(userProfile.id) : '';
@@ -75,12 +94,13 @@ export default function IssueCenterPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<IssueFormValues>({
     resolver: zodResolver(issueSchema),
     defaultValues: {
       severity: 'medium',
-      category: 'Bug',
+      category: urlCategory || 'Bug',
     },
   });
 
@@ -96,16 +116,39 @@ export default function IssueCenterPage() {
       setIssues(issuesData.issues);
       setUsers(usersData);
       setProjects(projectsData);
+      
+      // Auto-set project if passed in URL
+      if (urlProject && projectsData) {
+        const p = projectsData.find((proj: any) => proj.name.toLowerCase() === urlProject.toLowerCase() || proj.id.toString() === urlProject);
+        if (p) {
+          setValue('project_id', String(p.id));
+        }
+      }
+      
     } catch (err: any) {
       if (!background) setError(err.message || 'Failed to load issues');
     } finally {
       if (!background) setLoading(false);
     }
-  }, [setIssues]);
+  }, [setIssues, urlProject, setValue]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const [pendingAssignment, setPendingAssignment] = useState<Issue | null>(null);
+
+  useEffect(() => {
+    // Check if any issue is pending acceptance for the current user
+    if (issues.length > 0 && currentUserId) {
+      const pending = issues.find(i => (i as any).assignmentStatus === 'pending_acceptance' && String((i as any).assignedUserId) === currentUserId);
+      if (pending && !pendingAssignment && !detailOpen) {
+        setPendingAssignment(pending);
+      } else if (!pending) {
+        setPendingAssignment(null);
+      }
+    }
+  }, [issues, currentUserId, detailOpen]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -123,17 +166,19 @@ export default function IssueCenterPage() {
         priority: data.severity,
         category: data.category || 'Bug',
         deadline: data.deadline || undefined,
-        assigned_user_id: parseInt(data.assigned_user_id),
+        assigned_user_id: data.assigned_user_id ? parseInt(data.assigned_user_id) : undefined,
         project_id: data.project_id ? parseInt(data.project_id) : undefined,
+        attachments: data.attachments || undefined,
       });
       reset({
         title: '',
         description: '',
         severity: 'medium',
-        category: 'Bug',
+        category: urlCategory || 'Bug',
         assigned_user_id: '',
         project_id: '',
         deadline: '',
+        attachments: [],
       });
       setCreateOpen(false);
       await loadData();
@@ -154,6 +199,41 @@ export default function IssueCenterPage() {
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleAssignmentAction = async (issue: Issue, action: 'accept' | 'decline' | 'transfer') => {
+    try {
+      if (action === 'transfer') {
+        setTransferOpen(true);
+        return;
+      } else if (action === 'accept') {
+        await issuesService.acceptIssue(parseInt(issue.id));
+      } else if (action === 'decline') {
+        await issuesService.declineIssue(parseInt(issue.id));
+      }
+      
+      await loadData();
+      setDetailOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Action failed');
+    }
+  };
+
+  const submitTransfer = async () => {
+    if (!selectedIssue || !transferUserId) return;
+    setSubmitting(true);
+    try {
+      await issuesService.transferIssue(parseInt(selectedIssue.id), parseInt(transferUserId), transferReason);
+      setTransferOpen(false);
+      setTransferUserId('');
+      setTransferReason('');
+      setDetailOpen(false);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Transfer failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -425,7 +505,7 @@ export default function IssueCenterPage() {
                       )}
                     >
                       {STATUS_OPTIONS.map(s => (
-                        <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                        <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
                       ))}
                     </select>
                   </div>
@@ -517,7 +597,7 @@ export default function IssueCenterPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-2xs font-bold text-text-secondary uppercase">Assign To</label>
+                <label className="text-2xs font-bold text-text-secondary uppercase">Assign To (Optional)</label>
                 <select
                   className={cn(
                     "w-full h-10 bg-background-secondary border border-border-subtle rounded-md px-3 text-sm text-text-primary outline-none",
@@ -525,7 +605,7 @@ export default function IssueCenterPage() {
                   )}
                   {...register('assigned_user_id')}
                 >
-                  <option value="">Select User</option>
+                  <option value="">Auto-Assign to Available Teammate</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>{u.name} {u.department ? `(${u.department})` : ''}</option>
                   ))}
@@ -534,13 +614,35 @@ export default function IssueCenterPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-2xs font-bold text-text-secondary uppercase">Deadline</label>
-              <Input
-                type="date"
-                {...register('deadline')}
-                className="bg-background-secondary border border-border-subtle"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Deadline</label>
+                <Input
+                  type="date"
+                  {...register('deadline')}
+                  className="bg-background-secondary border border-border-subtle"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-2xs font-bold text-text-secondary uppercase">Screenshot (Optional)</label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  className="bg-background-secondary border border-border-subtle pt-1.5"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setValue('attachments', [reader.result as string]);
+                      };
+                      reader.readAsDataURL(file);
+                    } else {
+                      setValue('attachments', []);
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             <DialogFooter className="pt-2">
@@ -614,15 +716,74 @@ export default function IssueCenterPage() {
                   )}
                 >
                   {STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Follow-ups */}
+              {/* Assignment Actions */}
+              {(selectedIssue as any).assignmentStatus === 'pending_acceptance' && String((selectedIssue as any).assignedUserId) === currentUserId && (
+                <div className="flex items-center gap-3 bg-accent-blue/5 p-3 rounded-md border border-accent-blue/20 flex-wrap">
+                  <span className="flex-1 text-xs text-text-primary font-semibold min-w-[200px]">
+                    You have been assigned this issue. Please accept or decline.
+                  </span>
+                  <button
+                    onClick={() => handleAssignmentAction(selectedIssue, 'accept')}
+                    className="px-3 py-1.5 bg-accent-blue text-white text-xs font-bold rounded shadow hover:bg-accent-blue-hover"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleAssignmentAction(selectedIssue, 'decline')}
+                    className="px-3 py-1.5 bg-background-primary border border-border-subtle text-text-secondary text-xs font-bold rounded shadow hover:bg-background-secondary"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => handleAssignmentAction(selectedIssue, 'transfer')}
+                    className="px-3 py-1.5 bg-background-primary border border-border-subtle text-text-secondary text-xs font-bold rounded shadow hover:bg-background-secondary"
+                  >
+                    Transfer
+                  </button>
+                </div>
+              )}
+
+              {/* Attachments */}
+              {selectedIssue.attachments && selectedIssue.attachments.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-text-secondary uppercase tracking-wider">
+                    <Paperclip className="w-4 h-4 text-accent-blue" /> Attachments
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedIssue.attachments.map((url, i) => (
+                      <div 
+                        key={i} 
+                        onClick={() => {
+                          if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i) || url.startsWith('data:image/')) {
+                            setPreviewImage(url);
+                          } else {
+                            window.open(url, '_blank');
+                          }
+                        }}
+                        className="block border border-border-subtle rounded hover:opacity-80 transition-opacity cursor-pointer"
+                      >
+                        {url.match(/\.(jpeg|jpg|gif|png|webp)$/i) || url.startsWith('data:image/') ? (
+                          <img src={url} alt={`Attachment ${i}`} className="w-32 h-32 object-cover rounded" />
+                        ) : (
+                          <div className="w-32 h-32 flex items-center justify-center bg-background-secondary rounded text-xs text-text-secondary break-all p-2 text-center">
+                            {url.split('/').pop() || 'File'}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Team Discussion */}
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-text-secondary uppercase tracking-wider">
-                  <MessageSquare className="w-4 h-4 text-accent-blue" /> Follow-ups
+                  <MessageSquare className="w-4 h-4 text-accent-blue" /> Team Discussion
                   {selectedIssue.followups ? ` (${selectedIssue.followups.length})` : ''}
                 </div>
 
@@ -673,6 +834,72 @@ export default function IssueCenterPage() {
                 </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Modal */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="max-w-md bg-background-primary border-border-subtle z-[10000]">
+          <DialogHeader>
+            <DialogTitle>Transfer Issue</DialogTitle>
+            <DialogDescription>
+              Select a teammate to transfer this issue to.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-text-secondary">Teammate</label>
+              <select 
+                className="w-full bg-background-secondary border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-blue"
+                value={transferUserId}
+                onChange={(e) => setTransferUserId(e.target.value)}
+              >
+                <option value="">Select a user...</option>
+                {users.filter(u => String(u.id) !== currentUserId && String(u.role).toLowerCase() !== 'ceo').map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} {user.department ? `(${user.department})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-bold text-text-secondary">Reason (Optional)</label>
+              <textarea 
+                className="w-full bg-background-secondary border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-blue"
+                rows={3}
+                placeholder="Why are you transferring this issue?"
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter className="flex gap-2 justify-end">
+            <button
+              onClick={() => setTransferOpen(false)}
+              className="px-4 py-2 text-sm font-bold text-text-secondary hover:bg-background-secondary rounded-md transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitTransfer}
+              disabled={!transferUserId || submitting}
+              className="px-4 py-2 text-sm font-bold bg-accent-blue text-white rounded-md hover:bg-accent-blue-hover disabled:opacity-50 transition-all"
+            >
+              {submitting ? 'Transferring...' : 'Transfer'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Preview Modal */}
+      <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+        <DialogContent className="max-w-4xl bg-transparent border-none shadow-none z-[11000] flex justify-center p-0">
+          {previewImage && (
+            <img src={previewImage} alt="Preview" className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl" />
           )}
         </DialogContent>
       </Dialog>

@@ -34,6 +34,9 @@ function mapIssue(raw: any): Issue {
     reporterAvatar: raw.reported_by?.avatar || undefined,
     followupCount: raw.followup_count || 0,
     followups: (raw.followups || []).map(mapFollowup),
+    assignmentStatus: raw.assignment_status || undefined,
+    assignedUserId: raw.assigned_user_id ? String(raw.assigned_user_id) : undefined,
+    attachments: raw.attachments || [],
   };
 }
 
@@ -57,6 +60,7 @@ export interface CreateIssuePayload {
   deadline?: string;
   project_id?: number;
   assigned_user_id?: number;
+  attachments?: string[];
 }
 
 export const issuesService = {
@@ -130,6 +134,47 @@ export const issuesService = {
       const err = await res.json().catch(() => ({ detail: 'Failed to update status' }));
       throw new Error(err.detail || err.message || 'Failed to update status');
     }
+    const json = await res.json();
+    return mapIssue(json.data);
+  },
+
+  updateIssueStatus: async (issueId: number, status: string): Promise<Issue> => {
+    const res = await fetch(`${BASE}/${issueId}/status?status=${status}`, {
+      method: 'PUT',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to update issue status');
+    const json = await res.json();
+    return mapIssue(json.data);
+  },
+
+  acceptIssue: async (issueId: number): Promise<Issue> => {
+    const res = await fetch(`${BASE}/${issueId}/accept`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to accept issue');
+    const json = await res.json();
+    return mapIssue(json.data);
+  },
+
+  declineIssue: async (issueId: number): Promise<Issue> => {
+    const res = await fetch(`${BASE}/${issueId}/decline`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to decline issue');
+    const json = await res.json();
+    return mapIssue(json.data);
+  },
+
+  transferIssue: async (issueId: number, userId: number, reason?: string): Promise<Issue> => {
+    const res = await fetch(`${BASE}/${issueId}/transfer`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ user_id: userId, reason: reason || '' })
+    });
+    if (!res.ok) throw new Error('Failed to transfer issue');
     const json = await res.json();
     return mapIssue(json.data);
   },
