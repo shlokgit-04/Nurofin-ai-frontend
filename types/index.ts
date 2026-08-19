@@ -204,6 +204,9 @@ export interface Issue {
   reporterAvatar?: string;
   followupCount?: number;
   followups?: IssueFollowup[];
+  assignmentStatus?: string;
+  assignedUserId?: string;
+  attachments?: string[];
 }
 
 export type FinanceRecordType = 'budget' | 'expense' | 'salary' | 'vendor_payment' | 'renewal' | 'revenue' | 'other';

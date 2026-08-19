@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import GlobalChat from '@/components/layout/GlobalChat';
+import GlobalAssignmentPopup from '@/components/layout/GlobalAssignmentPopup';
 import { useStore } from '@/lib/store';
 import { cn } from '@/utils/cn';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -302,6 +303,7 @@ export default function ClientLayout({
           </main>
           {/* Floating AI Helper overlay */}
           <GlobalChat />
+          <GlobalAssignmentPopup />
         </div>
       </div>
     </QueryClientProvider>
