@@ -641,7 +641,11 @@ export default function PlannerPage() {
     });
     
     const scheduledTasks = currentTasks
-      .filter(t => t.scheduledDate === dateStr || (!t.scheduledDate && t.dueDate && t.dueDate.startsWith(dateStr)))
+      .filter(t => {
+        const isTargetUser = String(t.assignedTo?.id || t.assigneeId) === String(selectedUserId);
+        const isDateMatch = t.scheduledDate === dateStr || (!t.scheduledDate && t.dueDate && t.dueDate.startsWith(dateStr));
+        return isTargetUser && isDateMatch;
+      })
       .map(t => ({
         id: t.id,
         title: t.title,
